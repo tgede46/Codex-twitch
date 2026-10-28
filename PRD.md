@@ -10,22 +10,25 @@ Permettre à un streamer de lancer un jeu interactif sur son stream et à ses vi
 
 ## 2. Objectif du MVP
 
-Livrer une démo web responsive démontrant une boucle complète : le streamer crée une partie, les viewers rejoignent avec un pseudo et un QR code, ils attaquent ensemble un boss 2D, et le streamer peut afficher les meilleurs joueurs.
+Livrer une démo web responsive démontrant une boucle complète : le streamer crée une session, voit les informations d’accès viewer, choisit parmi cinq jeux 2D, règle la durée de 3 à 10 minutes, choisit s’il participe ou anime seulement, puis lance la partie. Les viewers rejoignent avec un pseudo et un QR code et jouent ensemble depuis leur navigateur mobile.
 
 ### Réussite attendue
 
 - Un streamer peut lancer une session et ouvrir son overlay dans OBS comme source navigateur.
 - Un viewer peut rejoindre depuis un téléphone avec un lien ou un QR code, sans compte.
-- Une action mobile produit un retour immédiat sur le téléphone et un effet visible dans le jeu.
-- Le boss perd des points de vie et la partie affiche les dégâts cumulés.
+- Une action mobile produit un retour immédiat sur le téléphone et un effet visible dans l’arène 2D.
+- Le score de l’équipe ou des joueurs évolue selon les règles du jeu choisi.
 - Le streamer peut déclencher un événement spécial.
-- Un classement de session affiche les cinq meilleurs joueurs et leurs dégâts.
+- Un classement de session affiche les cinq meilleurs joueurs et leurs points.
 
 ## 3. Utilisateurs et besoins
 
 ### Streamer
 
 - Créer et démarrer une session rapidement.
+- Voir le QR code et le lien viewer avant de lancer la partie.
+- Choisir avant le lancement s’il participe au combat ou reste streamer/commentateur.
+- S’il participe, attaquer depuis le dashboard et apparaître dans le classement.
 - Ajouter l’overlay à OBS sans installer de plugin natif.
 - Afficher un QR code et un lien faciles à partager.
 - Voir le nombre de joueurs connectés et l’état de la session.
@@ -35,7 +38,7 @@ Livrer une démo web responsive démontrant une boucle complète : le streamer c
 
 - Rejoindre depuis le navigateur mobile, sans installation ni compte.
 - Choisir un pseudo.
-- Attaquer le boss depuis une commande mobile simple.
+- Utiliser les commandes adaptées au jeu choisi : saut, attaque, réponse quiz, direction de bille ou poussée.
 - Voir immédiatement si son action est acceptée et son score évoluer.
 - Consulter le classement de la session.
 
@@ -43,12 +46,12 @@ Livrer une démo web responsive démontrant une boucle complète : le streamer c
 
 ### Parcours streamer
 
-1. Ouvre le tableau de bord.
-2. Crée une session Co-Op Boss Raid.
-3. Copie l’URL de l’overlay dans une source navigateur OBS.
-4. Lance la session. L’overlay affiche le jeu, le QR code, le lien et l’état.
-5. Suit les joueurs, les dégâts et le classement.
-6. Peut déclencher un événement spécial.
+1. Crée une session et choisit un jeu parmi les cinq ainsi qu’une durée de 3 à 10 minutes.
+2. Dans le lobby, récupère le lien et le QR code viewer, puis ajoute l’URL de l’overlay comme source navigateur OBS.
+3. Choisit « Je participe aussi » ou « J’anime le live ».
+4. Lance la session. L’overlay affiche le jeu, le QR code, le lien, le chrono et l’état.
+5. Si le jeu le permet, participe depuis le dashboard ; sinon, anime le live et déclenche les événements disponibles.
+6. Suit les joueurs, les dégâts et le classement.
 7. Termine la session.
 
 ### Parcours viewer
@@ -56,8 +59,8 @@ Livrer une démo web responsive démontrant une boucle complète : le streamer c
 1. Scanne le QR code ou ouvre le lien partagé.
 2. Saisit un pseudo.
 3. Reçoit la manette mobile.
-4. Appuie pour attaquer. L’interface confirme l’action et le jeu montre l’impact.
-5. Suit ses dégâts et sa position au classement.
+4. Utilise les commandes adaptées au jeu. L’interface confirme l’action et l’arène montre son impact.
+5. Suit ses points et sa position au classement.
 
 ## 5. Fonctionnalités MVP
 
@@ -68,11 +71,24 @@ Livrer une démo web responsive démontrant une boucle complète : le streamer c
 - Autoriser un pseudo libre avec validation simple.
 - Afficher les états : en attente, en cours, terminée, déconnectée.
 
+### Catalogue MVP : cinq jeux courts
+
+- **Pixel Jump Royale** : platformer 2D collectif ; les viewers sautent au bon moment pour éviter les obstacles.
+- **Co-Op Boss Raid** : shooter 2D coopératif contre un boss.
+- **Speed Quiz Show** : quiz à choix multiples renouvelé après les bonnes réponses, avec points et classement.
+- **Marble Fall 2D** : course de billes à obstacles, guidée depuis le mobile.
+- **Arena Royale 2D** : sumo 2D compétitif, poussées directionnelles et classement.
+- Le streamer sélectionne un jeu et une durée entre 3 et 10 minutes dans le lobby ; le choix est verrouillé au lancement.
+- Un compte à rebours serveur partagé termine la partie et conserve le classement final.
+
 ### Jeu Co-Op Boss Raid
 
 - Jeu 2D dans un canvas adapté à l’overlay.
 - Boss avec barre de vie visible.
 - Attaque viewer avec cadence limitée côté serveur.
+- Participation streamer facultative, choisie dans le lobby avant le lancement.
+- Si le streamer participe, son bouton d’attaque utilise la même cadence et les mêmes dégâts que les viewers ; il figure dans le classement sous le pseudo « Streamer ».
+- Si le streamer n’y participe pas, il garde les commandes d’animation mais ne reçoit aucun score de combat.
 - Effet visuel à chaque attaque acceptée.
 - Compteur global de dégâts et nombre de joueurs actifs.
 - Bouton streamer pour déclencher une phase ou attaque spéciale.
@@ -102,7 +118,7 @@ Livrer une démo web responsive démontrant une boucle complète : le streamer c
 - Le serveur valide les attaques, applique une cadence d’une attaque par joueur toutes les 800 ms, calcule les dégâts et met à jour le classement.
 - Valeurs initiales à régler après un premier essai : boss à 1 000 PV ; attaque à 10 dégâts.
 - Le streamer peut activer « Rage du boss » une fois toutes les 30 secondes ; pendant 10 secondes, les attaques viewer infligent 20 dégâts et l’overlay affiche clairement l’événement.
-- Le jeu se termine quand le boss atteint zéro PV ou quand le streamer termine la session. Pas de minuterie de défaite dans le MVP.
+- Les mini-jeux se terminent automatiquement à la fin du compte à rebours choisi (3 à 10 minutes) ; Boss Raid peut aussi se terminer quand les PV du boss atteignent zéro. Le streamer peut terminer la session à tout moment.
 - Les dégâts sont conservés par joueur jusqu’à la fin de la session, même après une déconnexion.
 - Le client reçoit une confirmation immédiate de son action et l’état partagé de la partie.
 - Reconnexion simple : le client récupère l’état courant de la session.
@@ -113,7 +129,7 @@ Livrer une démo web responsive démontrant une boucle complète : le streamer c
 ## 7. Architecture proposée
 
 - **Client :** Vite, React et TypeScript pour les pages dashboard, viewer et overlay.
-- **Jeu :** Phaser 2D intégré à la page overlay.
+- **Jeux :** cinq arènes Phaser 2D intégrées à la page overlay ; Marble Fall et Arena Royale sont adaptées en 2D pour la démo. Les actions viewer passent par Socket.IO et sont validées par le serveur.
 - **Serveur :** Node.js avec Socket.IO pour sessions, actions et classement.
 - **Données :** mémoire serveur pour la démo ; pas de base de données.
 - **OBS :** URL d’overlay ajoutée comme Browser Source ; pas de plugin OBS natif pour le MVP.
@@ -121,7 +137,7 @@ Livrer une démo web responsive démontrant une boucle complète : le streamer c
 
 ## 8. Hors périmètre MVP
 
-- Jeu 3D, autres jeux du catalogue et éditeur de jeux.
+- Jeu 3D, jeux supplémentaires et éditeur de jeux.
 - OAuth Twitch/YouTube, authentification et profils persistants.
 - Twitch Extension native, intégration de chat, EventSub et Channel Points.
 - Classements persistants entre sessions ou classement global.
@@ -131,15 +147,20 @@ Livrer une démo web responsive démontrant une boucle complète : le streamer c
 
 ## 9. Critères d’acceptation de la démo
 
-1. Le streamer peut créer et démarrer une session depuis le tableau de bord.
-2. L’URL d’overlay fonctionne dans OBS Browser Source et affiche le jeu et le QR code.
-3. Deux téléphones peuvent rejoindre la même session avec des pseudos distincts.
-4. Une attaque viewer confirmée réduit les PV du boss et augmente le score de son auteur.
-5. Les attaques trop rapides sont refusées sans augmenter les scores.
-6. Le top 5 se met à jour pendant la session dans le tableau de bord et l’overlay.
-7. Le bouton streamer déclenche l’événement annoncé dans le jeu.
-8. L’interface viewer reste utilisable sur petit écran, et l’interface streamer reste lisible sur ordinateur.
-9. Finir ou redémarrer une session produit un état compréhensible pour streamer et viewers.
+1. Le streamer peut créer une session, sélectionner chacun des cinq jeux, choisir une durée entière entre 3 et 10 minutes et voir sa sélection sur l’overlay.
+2. Avant le lancement, le dashboard affiche le lien et le QR code viewer.
+3. Le streamer peut choisir avant le lancement de participer au combat ou de rester animateur.
+4. Le choix streamer participant/animateur est visible et verrouillé au lancement ; les actions du streamer sont acceptées uniquement s’il a choisi de participer.
+5. L’URL d’overlay fonctionne dans OBS Browser Source et affiche le jeu et le QR code.
+6. Deux téléphones peuvent rejoindre la même session avec des pseudos distincts et voir les commandes adaptées au jeu sélectionné.
+7. Une action viewer confirmée met à jour le jeu sélectionné et le score de son auteur.
+8. Les actions répétées au-delà de la cadence serveur sont refusées sans augmenter les scores.
+9. Le top 5 se met à jour pendant la session dans le tableau de bord et l’overlay.
+10. Le contrôle spécial du streamer fonctionne dans les jeux qui le proposent ; Rage du boss n’est disponible que dans Boss Raid.
+11. Le chrono partagé se termine automatiquement à la durée choisie et le classement final reste visible.
+12. Les commandes viewer correspondent au jeu choisi : saut, attaque, réponses quiz, direction de bille ou poussée directionnelle.
+13. L’interface viewer reste utilisable sur petit écran, et l’interface streamer reste lisible sur ordinateur.
+14. Finir ou redémarrer une session produit un état compréhensible pour streamer et viewers.
 
 ## 10. Ordre de réalisation jusqu’à samedi
 
@@ -185,5 +206,5 @@ Les valeurs de jeu ci-dessus sont des réglages initiaux, pas des exigences d’
 - Le nom final de l’application et du jeu peut rester provisoire pendant le développement.
 - Les bots sont facultatifs. Si le temps manque, faire la démo avec plusieurs onglets/appareils plutôt que d’ajouter une simulation.
 
-Ces choix suffisent pour commencer le code. Si le calendrier se resserre, livrer d’abord création/rejoindre, attaque synchronisée, PV du boss et overlay ; livrer ensuite classement et événement streamer. PWA reste le dernier bonus.
+Le MVP vise les cinq mini-jeux, la durée réglable, le parcours de session, les commandes mobile, le classement et l’overlay. La PWA reste le dernier bonus si le temps le permet.
 

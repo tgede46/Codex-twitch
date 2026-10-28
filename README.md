@@ -15,10 +15,13 @@ Pour tester avec un téléphone sur le même Wi-Fi, ouvre `http://<IP-DE-L-ORDIN
 
 ## Démo
 
-1. Ouvre l’accueil et clique sur **Lancer une partie**.
-2. Partage le lien `/play/<CODE>` ou scanne le QR code dans l’overlay.
-3. Clique sur **Lancer la partie** dans le tableau streamer.
-4. Ajoute `/overlay/<CODE>` comme source navigateur dans OBS.
-5. Attaque depuis le téléphone ; les PV du boss et le classement évoluent en direct.
+1. Ouvre l’accueil et clique sur **Créer une partie**.
+2. Dans le lobby, affiche le QR code ou copie le lien viewer.
+3. Choisis l’un des cinq jeux (Pixel Jump Royale, Co-Op Boss Raid, Speed Quiz Show, Marble Fall 2D, Arena Royale 2D), sa durée (3 à 10 minutes) et si tu participes ou animes seulement.
+4. Clique sur **Lancer la partie** quand tes viewers sont prêts. Le chrono se termine automatiquement.
+5. Ajoute `/overlay/<CODE>` comme source navigateur dans OBS.
+6. Les viewers jouent depuis leur téléphone avec les commandes du jeu sélectionné ; les scores et le classement évoluent en direct.
+
+Les cinq arènes sont rendues en 2D avec Phaser. Marble Fall et Arena Royale sont des versions 2D simplifiées pour le MVP, sans moteur 3D.
 
 Les sessions et scores sont gardés en mémoire serveur. Un redémarrage les efface.

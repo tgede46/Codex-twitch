@@ -8,9 +8,9 @@ import {
   Play, Radio, RotateCw, Shield, Sparkles, Swords, Trophy, Users, Zap,
 } from "lucide-react";
 import { Arena } from "./Arena";
-import type { Ack, SessionState } from "./types";
+import { GAMES, type Ack, type GameId, type SessionState } from "./types";
 
-type ServerAck = Ack<{ code?: string; hostToken?: string; playerId?: string; rank?: number; state?: SessionState; damage?: number }>;
+type ServerAck = Ack<{ code?: string; hostToken?: string; playerId?: string; rank?: number; state?: SessionState; damage?: number; points?: number; correct?: boolean }>;
 const socket = io(import.meta.env.DEV ? `${window.location.protocol}//${window.location.hostname}:3001` : undefined);
 
 function useSocket() {
@@ -26,6 +26,10 @@ function StatusPill({ state }: { state: SessionState | null }) {
   if (state.status === "live") return <span className="status-pill status-live"><i /> En direct</span>;
   if (state.status === "ended") return <span className="status-pill status-ended"><i /> Terminée</span>;
   return <span className="status-pill status-waiting"><i /> En attente</span>;
+}
+
+function GameStage({ state, className = "" }: { state: SessionState | null; className?: string }) {
+  return <Arena state={state} className={className} />;
 }
 
 function Landing({ socket }: { socket: Socket }) {
@@ -74,7 +78,7 @@ function Landing({ socket }: { socket: Socket }) {
           <div className="eyebrow"><span className="eyebrow-icon"><Radio size={13} /></span> MULTIJOUEUR · EN DIRECT · GRATUIT</div>
           <h1>Votre chat.<br /><span>Dans la partie.</span></h1>
           <p className="hero-description">Transformez votre live en arène coopérative. Vos viewers rejoignent depuis leur téléphone et attaquent le boss avec vous.</p>
-          <div className="hero-actions"><button className="button button-primary button-large" onClick={createSession} disabled={busy || !connected}>{busy ? <RotateCw size={17} className="spin" /> : <Play size={17} fill="currentColor" />} {busy ? "Création…" : "Lancer une partie"}<ArrowRight size={16} /></button><a className="button button-quiet button-large" href="#how">Découvrir <ArrowDownToLine size={16} /></a></div>
+          <div className="hero-actions"><button className="button button-primary button-large" onClick={createSession} disabled={busy || !connected}>{busy ? <RotateCw size={17} className="spin" /> : <Gamepad2 size={17} />} {busy ? "Création…" : "Créer une partie"}<ArrowRight size={16} /></button><a className="button button-quiet button-large" href="#how">Découvrir <ArrowDownToLine size={16} /></a></div>
           {error && <div className="inline-error" role="alert">{error}</div>}
           <div className="hero-trust"><span className="avatar-stack"><i>J</i><i>M</i><i>A</i></span><span><strong>{connected ? "Serveur prêt" : "Connexion au serveur…"}</strong><br />Aucun compte viewer requis</span></div>
         </div>
@@ -104,7 +108,7 @@ function Landing({ socket }: { socket: Socket }) {
 }
 
 function Topbar({ state, code }: { state: SessionState | null; code: string }) {
-  return <header className="app-topbar"><Brand compact /><div className="topbar-center"><span className="topbar-game-icon"><Gamepad2 size={15} /></span><span>Co-Op Boss Raid</span><ChevronDown size={14} /></div><div className="topbar-right"><StatusPill state={state} /><span className="topbar-divider" /><span className="session-code-label">SESSION <strong>{code}</strong></span><button className="icon-button help-button" aria-label="Aide" title="Aide"><CircleHelp size={18} /></button><div className="user-avatar" aria-label="Profil streamer">S</div></div></header>;
+  return <header className="app-topbar"><Brand compact /><div className="topbar-center"><span className="topbar-game-icon"><Gamepad2 size={15} /></span><span>{GAMES.find((game) => game.id === state?.gameId)?.name ?? "Jeux CrowdRaid"}</span><ChevronDown size={14} /></div><div className="topbar-right"><StatusPill state={state} /><span className="topbar-divider" /><span className="session-code-label">SESSION <strong>{code}</strong></span><button className="icon-button help-button" aria-label="Aide" title="Aide"><CircleHelp size={18} /></button><div className="user-avatar" aria-label="Profil streamer">S</div></div></header>;
 }
 
 function HostPage({ socket }: { socket: Socket }) {
@@ -127,11 +131,23 @@ function HostPage({ socket }: { socket: Socket }) {
     return () => { socket.off("session:state", receive); socket.off("connect", join); };
   }, [socket, code, hostToken]);
 
-  const act = (event: "host:start" | "host:rage" | "host:end") => {
+  const act = (event: "host:start" | "host:rage" | "host:end" | "host:attack") => {
     socket.emit(event, (result: ServerAck) => {
       if (!result.ok) setMessage(result.error);
-      else setMessage(event === "host:rage" ? "Rage activée ! Double dégâts pendant 10 secondes." : event === "host:start" ? "La partie est lancée !" : "Partie terminée.");
+      else setMessage(event === "host:rage" ? "Rage activée ! Double dégâts pendant 10 secondes." : event === "host:start" ? "La partie est lancée !" : event === "host:attack" ? `Tu infliges ${result.damage ?? 10} dégâts !` : "Partie terminée.");
       window.setTimeout(() => setMessage(""), 4000);
+    });
+  };
+  const chooseParticipation = (enabled: boolean) => {
+    socket.emit("host:participation", { enabled }, (result: ServerAck) => {
+      if (!result.ok) setMessage(result.error);
+      else setMessage(enabled ? "Tu participes au combat avec les viewers." : "Tu animes le live sans rejoindre le combat.");
+      window.setTimeout(() => setMessage(""), 4000);
+    });
+  };
+  const configure = (gameId: GameId = state?.gameId ?? "boss", durationMinutes = state?.durationMinutes ?? 5) => {
+    socket.emit("host:configure", { gameId, durationMinutes }, (result: ServerAck) => {
+      if (!result.ok) setMessage(result.error);
     });
   };
   const copyLink = async (value: string) => {
@@ -139,7 +155,6 @@ function HostPage({ socket }: { socket: Socket }) {
     catch { setMessage("Copie indisponible : sélectionne et copie le lien."); }
   };
 
-  const pct = state ? (state.bossHp / state.bossMaxHp) * 100 : 100;
   return <div className="dashboard-page">
     <Topbar state={state} code={code} />
     <aside className="app-sidebar">
@@ -149,17 +164,19 @@ function HostPage({ socket }: { socket: Socket }) {
       <div className="sidebar-bottom"><div className="sidebar-help"><Shield size={17} /><span><strong>Session privée</strong><small>Seul toi contrôles la partie.</small></span></div><div className="sidebar-user"><span className="user-avatar user-avatar-large">S</span><span><strong>Streamer</strong><small>Compte démo</small></span><MoreHorizontal size={17} /></div></div>
     </aside>
     <main className="dashboard-main">
-      <div className="dashboard-heading"><div className="breadcrumb"><span>Dashboard</span><span>/</span><strong>Session en cours</strong></div><div className="heading-title-row"><div><h1>Salut, streamer <span className="wave-hand">✦</span></h1><p>Ta communauté est prête à entrer dans l’arène.</p></div><div className="heading-buttons"><button className="button button-white" onClick={() => window.open(overlayUrl, "_blank", "noopener,noreferrer")}><MonitorPlay size={16} /> Tester l’overlay</button><button className="button button-primary" onClick={() => act("host:end")} disabled={state?.status === "ended"}><span className="button-live-dot" /> Terminer la partie</button></div></div></div>
+      <div className="dashboard-heading"><div className="breadcrumb"><span>Dashboard</span><span>/</span><strong>{state?.status === "waiting" ? "Préparation" : "Session en cours"}</strong></div><div className="heading-title-row"><div><h1>{state?.status === "waiting" ? "Ta partie est prête" : "Salut, streamer"} <span className="wave-hand">✦</span></h1><p>{state?.status === "waiting" ? "Partage les infos de la session, choisis ton rôle, puis lance la partie." : "Ta communauté est dans l’arène. Anime le live ou attaque avec le chat."}</p></div><div className="heading-buttons"><button className="button button-white" onClick={() => window.open(overlayUrl, "_blank", "noopener,noreferrer")}><MonitorPlay size={16} /> Tester l’overlay</button><button className="button button-primary" onClick={() => act("host:end")} disabled={state?.status === "ended" || state?.status === "waiting"}><span className="button-live-dot" /> Terminer la partie</button></div></div></div>
       {message && <div className="toast-message" role="status"><Check size={15} /> {message}</div>}
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-top"><span>JOUEURS EN LIGNE</span><span className="stat-icon stat-icon-purple"><Users size={16} /></span></div><div className="stat-value">{state?.playerCount ?? 0}<small> viewers</small></div><div className="stat-foot"><span className="stat-live"><i /> Live maintenant</span><span>dans cette session</span></div></div>
-        <div className="stat-card"><div className="stat-top"><span>DÉGÂTS DE L’ÉQUIPE</span><span className="stat-icon stat-icon-peach"><Zap size={16} /></span></div><div className="stat-value">{(state?.totalDamage ?? 0).toLocaleString("fr-FR")}<small> pts</small></div><div className="stat-foot"><span className="stat-foot-positive"><ArrowUpRight size={13} /> Collectifs</span><span>depuis le début</span></div></div>
-        <div className="stat-card"><div className="stat-top"><span>VIE DU BOSS</span><span className="stat-icon stat-icon-mint"><Heart size={16} /></span></div><div className="stat-value">{state?.bossHp ?? 1000}<small> / {state?.bossMaxHp ?? 1000} PV</small></div><div className="stat-progress"><i style={{ width: `${pct}%` }} /></div><div className="stat-foot"><span>{Math.round(100 - pct)}% vaincu</span><span>Golem violet</span></div></div>
+        <div className="stat-card"><div className="stat-top"><span>SCORE CUMULÉ</span><span className="stat-icon stat-icon-peach"><Zap size={16} /></span></div><div className="stat-value">{(state?.totalDamage ?? 0).toLocaleString("fr-FR")}<small> pts</small></div><div className="stat-foot"><span className="stat-foot-positive"><ArrowUpRight size={13} /> Collectif</span><span>depuis le début</span></div></div>
+        <div className="stat-card"><div className="stat-top"><span>TEMPS RESTANT</span><span className="stat-icon stat-icon-mint"><Heart size={16} /></span></div><div className="stat-value">{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "5:00"}<small> / {state?.durationMinutes ?? 5} min</small></div><div className="stat-progress"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><div className="stat-foot"><span>{GAMES.find((game) => game.id === state?.gameId)?.name}</span><span>{state?.status === "live" ? "En cours" : "Durée choisie"}</span></div></div>
       </div>
+      {state?.status === "waiting" && <section className="game-picker surface-card"><div className="surface-heading"><div><h2>Choisis ton jeu</h2><p>Cinq jeux courts, pensés pour jouer ensemble pendant le live.</p></div><label className="duration-select">DURÉE <select value={state.durationMinutes} onChange={(event) => configure(state.gameId, Number(event.target.value))}>{[3,4,5,6,7,8,9,10].map((min) => <option key={min} value={min}>{min} min</option>)}</select></label></div><div className="game-picker-grid">{GAMES.map((game) => <button key={game.id} className={`game-choice ${state.gameId === game.id ? "game-choice-active" : ""}`} onClick={() => configure(game.id)}><span className="game-choice-icon">{game.icon}</span><span className="game-choice-meta"><small>{game.genre}</small><strong>{game.name}</strong><em>{game.description}</em></span>{state.gameId === game.id && <Check size={16} className="game-choice-check" />}</button>)}</div></section>}
+      <section className="participation-strip"><span className={`participation-icon ${state?.streamerParticipates ? "participation-active" : ""}`}><Gamepad2 size={18} /></span><div className="participation-copy"><strong>{state?.streamerParticipates ? "Tu joues avec le chat" : "Tu animes le live"}</strong><span>{state?.status === "waiting" ? "Choisis si tu veux jouer avec les viewers." : state?.streamerParticipates ? "Ta place est dans le classement. Joue depuis le dashboard." : "Les viewers jouent pendant que tu commentes."}</span></div>{state?.status === "waiting" ? <button className={`button ${state.streamerParticipates ? "button-white" : "button-primary"}`} onClick={() => chooseParticipation(!state.streamerParticipates)}><Swords size={15} />{state.streamerParticipates ? "Je préfère animer" : "Je participe aussi"}</button> : state?.status === "live" && state.streamerParticipates ? <button className="button button-primary" onClick={() => act("host:attack")}><Swords size={15} /> {state.gameId === "boss" ? "Attaquer le boss" : "Jouer un coup"}</button> : <span className="host-role-locked"><Shield size={14} /> {state?.status === "ended" ? "Partie terminée" : "Rôle choisi pour cette partie"}</span>}</section>
       <div className="dashboard-content-grid">
         <section className="surface-card stream-card">
           <div className="surface-heading"><div><h2>Ton arène</h2><p>Aperçu de ce que ton audience voit sur le stream.</p></div><div className="live-caption"><i /> {state?.status === "live" ? "LIVE" : state?.status === "ended" ? "FINI" : "PRÊT"}</div></div>
-          <div className="arena-frame"><div className="arena-hud"><div className="boss-hud"><span className="boss-name"><span className="boss-crown">♛</span> GOLEM VIOLET</span><div className="boss-health-row"><div className="boss-health"><i style={{ width: `${pct}%` }} /></div><span>{state?.bossHp ?? 1000}<small>/{state?.bossMaxHp ?? 1000}</small></span></div></div><div className="arena-players"><Users size={14} /> {state?.playerCount ?? 0} joueurs</div></div><Arena state={state} /><div className="arena-bottom-hud"><div className="arena-event"><span className="event-spark"><Sparkles size={14} /></span><span>{state?.lastEvent || "Les viewers attendent le lancement…"}</span></div><div className="arena-hud-score"><Trophy size={13} /> TOP 5</div></div></div>
+          <div className="arena-frame"><div className="arena-hud"><div className="boss-hud"><span className="boss-name"><span className="boss-crown">{GAMES.find((game) => game.id === state?.gameId)?.icon ?? "🎮"}</span> {GAMES.find((game) => game.id === state?.gameId)?.name ?? "JEU"}</span><div className="boss-health-row"><div className="boss-health"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><span>{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</span></div></div><div className="arena-players"><Users size={14} /> {state?.playerCount ?? 0} joueurs</div></div><GameStage state={state} /><div className="arena-bottom-hud"><div className="arena-event"><span className="event-spark"><Sparkles size={14} /></span><span>{state?.lastEvent || "Les viewers attendent le lancement…"}</span></div><div className="arena-hud-score"><Trophy size={13} /> TOP 5</div></div></div>
           <div className="arena-footer"><div className="overlay-status"><span className="overlay-status-icon"><MonitorPlay size={15} /></span><span><strong>Overlay OBS</strong><small>Source navigateur · 1920 × 1080</small></span><span className="connection-check"><Check size={13} /></span></div><button className="button button-outline" onClick={() => window.open(overlayUrl, "_blank", "noopener,noreferrer")}>Ouvrir l’overlay <ArrowUpRight size={15} /></button></div>
         </section>
         <section className="surface-card leaderboard-card">
@@ -171,8 +188,8 @@ function HostPage({ socket }: { socket: Socket }) {
           <button className="leaderboard-link" onClick={() => copyLink(viewerUrl)}>Partager le lien de la partie <ArrowRight size={15} /></button>
         </section>
       </div>
-      <div className="join-strip"><div className="join-strip-icon"><Sparkles size={17} /></div><div className="join-strip-copy"><strong>Fais entrer ton chat dans la partie</strong><span>Affiche le QR code ou copie le lien dans ton chat Twitch.</span></div><div className="join-link-chip"><Link2 size={14} /><span>{viewerUrl.replace(/^https?:\/\//, "")}</span><button aria-label="Copier le lien viewer" onClick={() => copyLink(viewerUrl)}>{copied ? <Check size={15} /> : <Copy size={15} />}</button></div><button className="button button-rage" onClick={() => act("host:rage")} disabled={state?.status !== "live" || state.rageActive}><Zap size={15} fill="currentColor" /> {state?.rageActive ? "Rage activée" : "Rage du boss"}</button></div>
-      {state?.status === "waiting" && <div className="launch-row"><span><span className="launch-indicator" /> Partage le lien, puis lance la partie quand les viewers sont prêts.</span><button className="button button-primary" onClick={() => act("host:start")}><Play size={15} fill="currentColor" /> Lancer la partie</button></div>}
+      <div className="join-strip"><span className="dashboard-qr"><QRCodeSVG value={viewerUrl} size={54} level="M" bgColor="#ffffff" fgColor="#392274" /></span><div className="join-strip-copy"><strong>Fais entrer ton chat dans la partie</strong><span>Scanne le QR code ou copie le lien dans le chat Twitch.</span></div><div className="join-link-chip"><Link2 size={14} /><span>{viewerUrl.replace(/^https?:\/\//, "")}</span><button aria-label="Copier le lien viewer" onClick={() => copyLink(viewerUrl)}>{copied ? <Check size={15} /> : <Copy size={15} />}</button></div>{state?.gameId === "boss" && <button className="button button-rage" onClick={() => act("host:rage")} disabled={state?.status !== "live" || state.rageActive}><Zap size={15} fill="currentColor" /> {state?.rageActive ? "Rage activée" : "Rage du boss"}</button>}</div>
+      {state?.status === "waiting" && <div className="launch-row"><span><span className="launch-indicator" /> {GAMES.find((game) => game.id === state.gameId)?.name} · {state.durationMinutes} minutes · partage le lien puis lance.</span><button className="button button-primary" onClick={() => act("host:start")}><Play size={15} fill="currentColor" /> Lancer la partie</button></div>}
     </main>
   </div>;
 }
@@ -189,8 +206,7 @@ function OverlayPage({ socket }: { socket: Socket }) {
     return () => { socket.off("session:state", receive); socket.off("connect", join); };
   }, [socket, code]);
 
-  const pct = state ? (state.bossHp / state.bossMaxHp) * 100 : 100;
-  return <main className="overlay-page"><div className="overlay-stage"><div className="overlay-hud-top"><div className="overlay-boss-label"><span className="overlay-crown">♛</span><div><strong>GOLEM VIOLET</strong><span className="overlay-hp-track"><i style={{ width: `${pct}%` }} /></span></div><b>{state?.bossHp ?? 1000}<small> / 1000</small></b></div><span className="overlay-live"><i /> {state?.playerCount ?? 0} JOUEURS EN LIGNE</span></div><Arena state={state} className="arena-overlay" />{state?.lastEvent && <div className="overlay-event">{state.lastEvent}</div>}<div className="overlay-bottom"><div className="overlay-top-list"><span className="overlay-list-title"><Trophy size={12} /> TOP RAIDERS</span>{(state?.topPlayers ?? []).slice(0, 5).map((player, index) => <span className="overlay-rank" key={player.id}><b>{index + 1}</b>{player.nickname}<small>{player.score}</small></span>)}</div><div className="overlay-join-card"><QRCodeSVG value={viewerUrl} size={75} level="M" bgColor="#ffffff" fgColor="#27164e" /><div><strong>REJOINS LE RAID</strong><span>Scanne pour jouer</span><b>{viewerUrl.replace(/^https?:\/\//, "")}</b></div></div></div></div></main>;
+  return <main className="overlay-page"><div className="overlay-stage"><div className="overlay-hud-top"><div className="overlay-boss-label"><span className="overlay-crown">{GAMES.find((game) => game.id === state?.gameId)?.icon ?? "🎮"}</span><div><strong>{GAMES.find((game) => game.id === state?.gameId)?.name ?? "CROWD RAID"}</strong><span className="overlay-hp-track"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></span></div><b>{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</b></div><span className="overlay-live"><i /> {state?.playerCount ?? 0} JOUEURS EN LIGNE</span></div><GameStage state={state} className="arena-overlay" />{state?.lastEvent && <div className="overlay-event">{state.lastEvent}</div>}<div className="overlay-bottom"><div className="overlay-top-list"><span className="overlay-list-title"><Trophy size={12} /> TOP JOUEURS</span>{(state?.topPlayers ?? []).slice(0, 5).map((player, index) => <span className="overlay-rank" key={player.id}><b>{index + 1}</b>{player.nickname}<small>{player.score}</small></span>)}</div><div className="overlay-join-card"><QRCodeSVG value={viewerUrl} size={75} level="M" bgColor="#ffffff" fgColor="#27164e" /><div><strong>REJOINS LA PARTIE</strong><span>Scanne pour jouer</span><b>{viewerUrl.replace(/^https?:\/\//, "")}</b></div></div></div></div></main>;
 }
 
 function ViewerPage({ socket }: { socket: Socket }) {
@@ -203,6 +219,7 @@ function ViewerPage({ socket }: { socket: Socket }) {
   const [feedback, setFeedback] = useState("Prêt à attaquer ? Chaque coup aide l’équipe.");
   const [error, setError] = useState("");
   const [attackBusy, setAttackBusy] = useState(false);
+  const [cueVisible, setCueVisible] = useState(true);
 
   useEffect(() => {
     const receive = (next: SessionState) => setState(next);
@@ -225,6 +242,13 @@ function ViewerPage({ socket }: { socket: Socket }) {
     return () => { socket.off("session:state", receive); socket.off("viewer:rank", receiveRank); };
   }, [socket, code]);
 
+  useEffect(() => {
+    if (state?.gameId !== "marble") return;
+    setCueVisible(true);
+    const timer = window.setTimeout(() => setCueVisible(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [state?.gameId, state?.target]);
+
   const joinGame = (event: FormEvent) => {
     event.preventDefault();
     setError("");
@@ -241,10 +265,10 @@ function ViewerPage({ socket }: { socket: Socket }) {
   const attack = () => {
     if (attackBusy || state?.status !== "live") return;
     setAttackBusy(true);
-    socket.emit("game:attack", (result: ServerAck) => {
+    socket.emit("game:action", {}, (result: ServerAck) => {
       setAttackBusy(false);
       if (!result.ok) { setFeedback(result.error); return; }
-      setFeedback(`Bien joué ! +${result.damage} dégâts pour toi.`);
+      setFeedback(`Bien joué ! +${result.points ?? 0} points pour toi.`);
       window.setTimeout(() => setFeedback("Ton attaque compte pour l’équipe."), 1800);
     });
   };
@@ -262,13 +286,21 @@ function ViewerPage({ socket }: { socket: Socket }) {
   };
 
   const myScore = state?.topPlayers.find((player) => player.id === playerId)?.score ?? 0;
-  const pct = state ? (state.bossHp / state.bossMaxHp) * 100 : 100;
+  const submitAnswer = (answer: string) => {
+    if (attackBusy) return;
+    setAttackBusy(true);
+    socket.emit("game:action", { answer }, (result: ServerAck) => {
+      setAttackBusy(false);
+      if (!result.ok) setFeedback(result.error);
+      else setFeedback((result.points ?? 0) > 0 ? `Bien joué ! +${result.points} points.` : "Pas cette fois ! Reste dans la partie.");
+    });
+  };
 
   return <main className="viewer-page"><header className="viewer-header"><Brand compact /><span className="viewer-connected"><i />{state?.status === "live" ? "Partie en direct" : state?.status === "ended" ? "Partie terminée" : "En attente du streamer"}</span></header>
     {!joined ? <section className="join-screen"><div className="join-decoration decor-one" /><div className="join-decoration decor-two" /><div className="join-card"><div className="join-game-icon"><Swords size={23} /></div><span className="join-overline">TU ES INVITÉ·E À</span><h1>Le chat contre<br /><span>le boss.</span></h1><p>Rejoins la partie du streamer. Choisis ton pseudo et attaque avec tout le monde.</p><form onSubmit={joinGame}><label htmlFor="nickname">Ton pseudo</label><div className="name-input-wrap"><span>@</span><input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value.slice(0, 16))} placeholder="ex. Luma" maxLength={16} autoComplete="nickname" required /></div>{error && <div className="inline-error" role="alert">{error}</div>}<button className="button button-primary button-block" type="submit" disabled={!nickname.trim()}><Gamepad2 size={17} /> Rejoindre la partie <ArrowRight size={16} /></button></form><div className="join-safe-note"><LockKeyhole size={13} /> Pas de compte. Pas de téléchargement. Juste du jeu.</div></div></section>
-    : <section className="controller-screen"><div className="controller-greeting"><div><span className="join-overline">SESSION {code}</span><h1>À toi de jouer, <span>{nickname}.</span></h1></div><span className="controller-player-count"><Users size={15} /> {state?.playerCount ?? 1} dans le raid</span></div><div className={`mobile-boss-card ${state?.rageActive ? "boss-raging" : ""}`}><div className="mobile-boss-top"><span className="mobile-boss-avatar"><span>♛</span></span><div><small>BOSS DU RAID</small><strong>Golem violet</strong></div><span className="mobile-boss-state">{state?.rageActive ? "RAGE" : state?.status === "ended" ? "FINI" : "EN JEU"}</span></div><div className="mobile-hp-row"><span>VIE DU BOSS</span><b>{state?.bossHp ?? 1000}<small> / {state?.bossMaxHp ?? 1000} PV</small></b></div><div className="mobile-health"><i style={{ width: `${pct}%` }} /></div><div className="boss-status-copy">{state?.lastEvent || "Ton équipe est prête."}</div></div>
+    : <section className="controller-screen"><div className="controller-greeting"><div><span className="join-overline">SESSION {code}</span><h1>À toi de jouer, <span>{nickname}.</span></h1></div><span className="controller-player-count"><Users size={15} /> {state?.playerCount ?? 1} dans le raid</span></div><div className={`mobile-boss-card ${state?.rageActive ? "boss-raging" : ""}`}><div className="mobile-boss-top"><span className="mobile-boss-avatar"><span>{GAMES.find((game) => game.id === state?.gameId)?.icon ?? "🎮"}</span></span><div><small>JEU EN COURS</small><strong>{GAMES.find((game) => game.id === state?.gameId)?.name}</strong></div><span className="mobile-boss-state">{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</span></div><div className="mobile-hp-row"><span>SCORE DE TON ÉQUIPE</span><b>{(state?.totalDamage ?? 0).toLocaleString("fr-FR")}<small> pts</small></b></div><div className="mobile-health"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><div className="boss-status-copy">{state?.lastEvent || "Ton équipe est prête."}</div></div>
       <div className="your-score-card"><span className="your-score-icon"><Zap size={17} /></span><span><small>TES DÉGÂTS</small><strong>{myScore} <em>pts</em></strong></span><span className="your-rank-pill">{myRank > 0 ? `#${myRank}` : "—"}</span></div>
-      {state?.status === "waiting" ? <div className="controller-wait"><div className="wait-pulse"><Radio size={22} /></div><strong>Le streamer arrive…</strong><span>La partie commencera dans un instant.</span></div> : state?.status === "ended" ? <div className="controller-wait controller-ended"><div className="wait-pulse"><Trophy size={22} /></div><strong>Beau raid, {nickname} !</strong><span>Merci d’avoir joué avec la communauté.</span></div> : <><button className={`attack-button ${attackBusy ? "attack-pressed" : ""}`} onClick={attack} disabled={attackBusy}><span className="attack-button-inner"><Swords size={30} /><strong>{attackBusy ? "À L’ATTAQUE…" : "ATTAQUER"}<small>Touche pour frapper le boss</small></strong><ArrowRight size={19} /></span></button><p className="attack-feedback" aria-live="polite"><Sparkles size={14} /> {feedback}</p></>}
+      {state?.status === "waiting" ? <div className="controller-wait"><div className="wait-pulse"><Radio size={22} /></div><strong>Le streamer prépare la partie</strong><span>{GAMES.find((game) => game.id === state?.gameId)?.name} · {state?.durationMinutes} minutes</span></div> : state?.status === "ended" ? <div className="controller-wait controller-ended"><div className="wait-pulse"><Trophy size={22} /></div><strong>Bien joué, {nickname} !</strong><span>Merci d’avoir joué avec la communauté.</span></div> : state?.gameId === "quiz" ? <div className="viewer-game-control"><strong>{state.prompt}</strong><div>{state.options.map((option) => <button key={option} disabled={attackBusy} onClick={() => submitAnswer(option)}>{option}</button>)}</div><p className="attack-feedback">{feedback}</p></div> : state?.gameId === "jump" ? <div className="viewer-game-control"><strong>{state.target === "Obstacle" ? "Obstacle ! Saute maintenant !" : "Prêt ? Un obstacle arrive…"}</strong><div><button className="jump-button" disabled={attackBusy} onClick={() => submitAnswer("SAUTER")}>⬆️ SAUTER</button></div><p className="attack-feedback">{feedback}</p></div> : state?.gameId === "marble" ? <div className="viewer-game-control"><strong>{cueVisible ? <>Virage à <span>{state.target}</span> !</> : "Guide ta bille sur le parcours"}</strong><div>{state.options.map((direction) => <button key={direction} disabled={attackBusy} onClick={() => submitAnswer(direction)}>{direction === "Gauche" ? "⬅️ " : "➡️ "}{direction}</button>)}</div><p className="attack-feedback">{feedback}</p></div> : state?.gameId === "arena" ? <div className="viewer-game-control"><strong>Choisis le côté de ta poussée !</strong><div>{state.options.map((direction) => <button key={direction} disabled={attackBusy} onClick={() => submitAnswer(direction)}>{direction === "Pousser gauche" ? "👊 ⬅️" : "➡️ 👊"}<br />{direction}</button>)}</div><p className="attack-feedback">{feedback}</p></div> : <><button className={`attack-button ${attackBusy ? "attack-pressed" : ""}`} onClick={attack} disabled={attackBusy}><span className="attack-button-inner"><Swords size={30} /><strong>{attackBusy ? "EN JEU…" : "ATTAQUER"}<small>{GAMES.find((game) => game.id === state?.gameId)?.description}</small></strong><ArrowRight size={19} /></span></button><p className="attack-feedback" aria-live="polite"><Sparkles size={14} /> {feedback}</p></>}
       <div className="controller-bottom"><div><Trophy size={16} /><span><strong>Top raid</strong><small>{state?.topPlayers.slice(0, 3).map((player) => player.nickname).join(" · ") || "Le classement arrive bientôt"}</small></span></div><button onClick={shareSession} aria-label="Partager la partie"><ArrowUpRight size={18} /></button></div>
     </section>}
   </main>;
