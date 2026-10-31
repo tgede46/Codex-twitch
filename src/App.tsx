@@ -14,7 +14,7 @@ import { GAMES, type Ack, type GameId, type SessionState, type HostSessionHistor
 import { TwitchIcon, TwitchBadge, TwitchLoginModal, TwitchUserCard } from "./TwitchComponents";
 import { getSavedTwitchUser, loadAuthenticatedTwitchUser, logoutTwitchUser, saveTwitchUser } from "./twitch";
 
-type ServerAck = Ack<{ code?: string; hostToken?: string; playerId?: string; rank?: number; state?: SessionState; damage?: number; points?: number; correct?: boolean }>;
+type ServerAck = Ack<{ code?: string; hostToken?: string; playerId?: string; rank?: number; state?: SessionState; damage?: number; points?: number; correct?: boolean; winner?: string }>;
 const socket = io(import.meta.env.DEV ? `${window.location.protocol}//${window.location.hostname}:3001` : undefined);
 
 function useSocket() {
