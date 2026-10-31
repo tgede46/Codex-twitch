@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState, useRef, type FormEvent } from "react";
+import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
 import { QRCodeSVG } from "qrcode.react";
 import { Toaster, toast } from "sonner";
@@ -159,21 +159,23 @@ function HostPage({ socket }: { socket: Socket }) {
       if (!result.ok) toast.error(result.error);
     });
   };
-  const copyLink = async (value: string) => {
-    try { await navigator.clipboard.writeText(value); setCopied(true); window.setTimeout(() => setCopied(false), 1600); }
+  const copyLink = async (value: string, label = "Lien copié !") => {
+    try { await navigator.clipboard.writeText(value); setCopied(true); toast.success(label); window.setTimeout(() => setCopied(false), 1600); }
     catch { toast.error("Copie indisponible : sélectionne et copie le lien."); }
   };
+
+  const overlayTransparentUrl = `${overlayUrl}?transparent=true`;
 
   return <div className="dashboard-page">
     <Topbar state={state} code={code} />
     <aside className="app-sidebar">
       <div className="sidebar-group-label">ESPACE STREAMER</div>
       <button className="sidebar-item sidebar-item-active"><MonitorPlay size={17} /><span>Ma session</span><i /></button>
-      <button className="sidebar-item" onClick={() => window.open(overlayUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={16} /><span>Overlay OBS</span><ArrowUpRight size={14} className="sidebar-trailing" /></button>
+      <button className="sidebar-item" onClick={() => window.open(overlayTransparentUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={16} /><span>Overlay OBS (Transparent)</span><ArrowUpRight size={14} className="sidebar-trailing" /></button>
       <div className="sidebar-bottom"><div className="sidebar-help"><Shield size={17} /><span><strong>Session privée</strong><small>Seul toi contrôles la partie.</small></span></div><div className="sidebar-user"><span className="user-avatar user-avatar-large">S</span><span><strong>Streamer</strong><small>Compte démo</small></span><MoreHorizontal size={17} /></div></div>
     </aside>
     <main className="dashboard-main">
-      <div className="dashboard-heading"><div className="breadcrumb"><span>Dashboard</span><span>/</span><strong>{state?.status === "waiting" ? "Préparation" : "Session en cours"}</strong></div><div className="heading-title-row"><div><h1>{state?.status === "waiting" ? "Ta partie est prête" : "Salut, streamer"} <span className="wave-hand">✦</span></h1><p>{state?.status === "waiting" ? "Partage les infos de la session, choisis ton rôle, puis lance la partie." : "Ta communauté est dans l’arène. Anime le live ou attaque avec le chat."}</p></div><div className="heading-buttons"><button className="button button-white" onClick={() => window.open(overlayUrl, "_blank", "noopener,noreferrer")}><MonitorPlay size={16} /> Tester l’overlay</button><button className="button button-primary" onClick={() => act("host:end")} disabled={state?.status === "ended" || state?.status === "waiting"}><span className="button-live-dot" /> Terminer la partie</button></div></div></div>
+      <div className="dashboard-heading"><div className="breadcrumb"><span>Dashboard</span><span>/</span><strong>{state?.status === "waiting" ? "Préparation" : "Session en cours"}</strong></div><div className="heading-title-row"><div><h1>{state?.status === "waiting" ? "Ta partie est prête" : "Salut, streamer"} <span className="wave-hand">✦</span></h1><p>{state?.status === "waiting" ? "Partage les infos de la session, choisis ton rôle, puis lance la partie." : "Ta communauté est dans l’arène. Anime le live ou attaque avec le chat."}</p></div><div className="heading-buttons"><button className="button button-white" onClick={() => copyLink(overlayTransparentUrl, "Lien OBS (fond transparent) copié !")} title="Copier l'URL transparente pour OBS"><MonitorPlay size={16} /> Copier URL OBS</button><button className="button button-white" onClick={() => window.open(overlayUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={16} /> Tester l’overlay</button><button className="button button-primary" onClick={() => act("host:end")} disabled={state?.status === "ended" || state?.status === "waiting"}><span className="button-live-dot" /> Terminer la partie</button></div></div></div>
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-top"><span>JOUEURS EN LIGNE</span><span className="stat-icon stat-icon-purple"><Users size={16} /></span></div><div className="stat-value">{state?.playerCount ?? 0}<small> viewers</small></div><div className="stat-foot"><span className="stat-live"><i /> Live maintenant</span><span>dans cette session</span></div></div>
         <div className="stat-card"><div className="stat-top"><span>SCORE CUMULÉ</span><span className="stat-icon stat-icon-peach"><Zap size={16} /></span></div><div className="stat-value">{(state?.totalDamage ?? 0).toLocaleString("fr-FR")}<small> pts</small></div><div className="stat-foot"><span className="stat-foot-positive"><ArrowUpRight size={13} /> Collectif</span><span>depuis le début</span></div></div>
@@ -185,7 +187,7 @@ function HostPage({ socket }: { socket: Socket }) {
         <section className="surface-card stream-card">
           <div className="surface-heading"><div><h2>Ton arène</h2><p>Aperçu de ce que ton audience voit sur le stream.</p></div><div className="live-caption"><i /> {state?.status === "live" ? "LIVE" : state?.status === "ended" ? "FINI" : "PRÊT"}</div></div>
           <div className="arena-frame"><div className="arena-hud"><div className="boss-hud"><span className="boss-name"><span className="boss-crown"><GameIcon gameId={state?.gameId} size={14} /></span> {GAMES.find((game) => game.id === state?.gameId)?.name ?? "JEU"}</span><div className="boss-health-row"><div className="boss-health"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><span>{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</span></div></div><div className="arena-players"><Users size={14} /> {state?.playerCount ?? 0} joueurs</div></div><GameStage state={state} /><div className="arena-bottom-hud"><div className="arena-event"><span className="event-spark"><Sparkles size={14} /></span><span>{state?.lastEvent || "Les viewers attendent le lancement…"}</span></div><div className="arena-hud-score"><Trophy size={13} /> TOP 5</div></div></div>
-          <div className="arena-footer"><div className="overlay-status"><span className="overlay-status-icon"><MonitorPlay size={15} /></span><span><strong>Overlay OBS</strong><small>Source navigateur · 1920 × 1080</small></span><span className="connection-check"><Check size={13} /></span></div><button className="button button-outline" onClick={() => window.open(overlayUrl, "_blank", "noopener,noreferrer")}>Ouvrir l’overlay <ArrowUpRight size={15} /></button></div>
+          <div className="arena-footer"><div className="overlay-status"><span className="overlay-status-icon"><MonitorPlay size={15} /></span><span><strong>Overlay OBS</strong><small>Source navigateur · 1920 × 1080 (Transparent)</small></span><span className="connection-check"><Check size={13} /></span></div><button className="button button-outline" onClick={() => window.open(overlayTransparentUrl, "_blank", "noopener,noreferrer")}>Ouvrir l’overlay <ArrowUpRight size={15} /></button></div>
         </section>
         <section className="surface-card leaderboard-card">
           <div className="surface-heading leaderboard-heading"><div><h2>Meilleurs joueurs</h2><p>Les héros du live, aujourd’hui.</p></div><button className="icon-button" aria-label="Plus d’options"><MoreHorizontal size={19} /></button></div>
@@ -196,7 +198,7 @@ function HostPage({ socket }: { socket: Socket }) {
           <button className="leaderboard-link" onClick={() => copyLink(viewerUrl)}>Partager le lien de la partie <ArrowRight size={15} /></button>
         </section>
       </div>
-      <div className="join-strip"><span className="dashboard-qr"><QRCodeSVG value={viewerUrl} size={54} level="M" bgColor="#ffffff" fgColor="#392274" /></span><div className="join-strip-copy"><strong>Fais entrer ton chat dans la partie</strong><span>Scanne le QR code ou copie le lien dans le chat Twitch.</span></div><div className="join-link-chip"><Link2 size={14} /><span>{viewerUrl.replace(/^https?:\/\//, "")}</span><button aria-label="Copier le lien viewer" onClick={() => copyLink(viewerUrl)}>{copied ? <Check size={15} /> : <Copy size={15} />}</button></div>{state?.gameId === "boss" && <button className="button button-rage" onClick={() => act("host:rage")} disabled={state?.status !== "live" || state.rageActive}><Zap size={15} fill="currentColor" /> {state?.rageActive ? "Rage activée" : "Rage du boss"}</button>}</div>
+      <div className="join-strip"><span className="dashboard-qr"><QRCodeSVG value={viewerUrl} size={54} level="M" bgColor="#ffffff" fgColor="#392274" /></span><div className="join-strip-copy"><strong>Fais entrer ton chat dans la partie</strong><span>Scanne le QR code ou copie le lien dans le chat Twitch.</span></div><div className="join-link-chip"><Link2 size={14} /><span>{viewerUrl.replace(/^https?:\/\//, "")}</span><button aria-label="Copier le lien viewer" onClick={() => copyLink(viewerUrl)}>{copied ? <Check size={15} /> : <Copy size={15} />}</button></div>{state?.gameId === "boss" && <button className={`button button-rage ${state?.rageActive ? "rage-pulsing" : ""}`} onClick={() => act("host:rage")} disabled={state?.status !== "live" || state.rageActive}><Zap size={15} fill="currentColor" /> {state?.rageActive ? "RAGE ACTIVE (×2 DMG)" : "Rage du boss (30s)"}</button>}</div>
       {state?.status === "waiting" && <div className="launch-row"><span><span className="launch-indicator" /> {GAMES.find((game) => game.id === state.gameId)?.name} · {state.durationMinutes} minutes · partage le lien puis lance.</span><button className="button button-primary" onClick={() => act("host:start")}><Play size={15} fill="currentColor" /> Lancer la partie</button></div>}
     </main>
   </div>;
@@ -204,8 +206,11 @@ function HostPage({ socket }: { socket: Socket }) {
 
 function OverlayPage({ socket }: { socket: Socket }) {
   const { code = "" } = useParams();
+  const [searchParams] = useSearchParams();
   const [state, setState] = useState<SessionState | null>(null);
+  const isTransparent = searchParams.get("transparent") === "true";
   const viewerUrl = `${window.location.origin}/play/${code}`;
+
   useEffect(() => {
     const receive = (next: SessionState) => setState(next);
     socket.on("session:state", receive);
@@ -214,7 +219,19 @@ function OverlayPage({ socket }: { socket: Socket }) {
     return () => { socket.off("session:state", receive); socket.off("connect", join); };
   }, [socket, code]);
 
-  return <main className="overlay-page"><div className="overlay-stage"><div className="overlay-hud-top"><div className="overlay-boss-label"><span className="overlay-crown"><GameIcon gameId={state?.gameId} size={20} /></span><div><strong>{GAMES.find((game) => game.id === state?.gameId)?.name ?? "CROWD RAID"}</strong><span className="overlay-hp-track"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></span></div><b>{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</b></div><span className="overlay-live"><i /> {state?.playerCount ?? 0} JOUEURS EN LIGNE</span></div><GameStage state={state} className="arena-overlay" />{state?.lastEvent && <div className="overlay-event">{state.lastEvent}</div>}<div className="overlay-bottom"><div className="overlay-top-list"><span className="overlay-list-title"><Trophy size={12} /> TOP JOUEURS</span>{(state?.topPlayers ?? []).slice(0, 5).map((player, index) => <span className="overlay-rank" key={player.id}><b>{index + 1}</b>{player.nickname}<small>{player.score}</small></span>)}</div><div className="overlay-join-card"><QRCodeSVG value={viewerUrl} size={75} level="M" bgColor="#ffffff" fgColor="#27164e" /><div><strong>REJOINS LA PARTIE</strong><span>Scanne pour jouer</span><b>{viewerUrl.replace(/^https?:\/\//, "")}</b></div></div></div></div></main>;
+  return <main className={`overlay-page ${isTransparent ? "overlay-page-transparent" : ""}`}><div className={`overlay-stage ${isTransparent ? "overlay-stage-transparent" : ""}`}><div className="overlay-hud-top"><div className="overlay-boss-label"><span className="overlay-crown"><GameIcon gameId={state?.gameId} size={20} /></span><div><strong>{GAMES.find((game) => game.id === state?.gameId)?.name ?? "CROWD RAID"}</strong><span className="overlay-hp-track"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></span></div><b>{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</b></div><span className="overlay-live"><i /> {state?.playerCount ?? 0} JOUEURS EN LIGNE</span></div><GameStage state={state} className="arena-overlay" />{state?.lastEvent && <div className="overlay-event">{state.lastEvent}</div>}<div className="overlay-bottom"><div className="overlay-top-list"><span className="overlay-list-title"><Trophy size={12} /> TOP JOUEURS</span>{(state?.topPlayers ?? []).slice(0, 5).map((player, index) => <span className="overlay-rank" key={player.id}><b>{index + 1}</b>{player.nickname}<small>{player.score}</small></span>)}</div><div className={`overlay-join-card ${state?.status === "live" ? "overlay-join-card-compact" : ""}`}><QRCodeSVG value={viewerUrl} size={state?.status === "live" ? 48 : 72} level="M" bgColor="#ffffff" fgColor="#27164e" /><div><strong>{state?.status === "live" ? "REJOINDRE" : "REJOINS LA PARTIE"}</strong><span>Scanne pour jouer</span><b>{viewerUrl.replace(/^https?:\/\//, "")}</b></div></div></div></div></main>;
+}
+
+type FloatingDamage = { id: number; text: string; isCrit?: boolean; x: number };
+
+function triggerHaptic(pattern: number | number[] = 35) {
+  try {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(pattern);
+    }
+  } catch {
+    // Ignore when not supported
+  }
 }
 
 function ViewerPage({ socket }: { socket: Socket }) {
@@ -228,6 +245,17 @@ function ViewerPage({ socket }: { socket: Socket }) {
   const [error, setError] = useState("");
   const [attackBusy, setAttackBusy] = useState(false);
   const [cueVisible, setCueVisible] = useState(true);
+  const [floatingDamages, setFloatingDamages] = useState<FloatingDamage[]>([]);
+  const cooldownTimerRef = useRef<number | null>(null);
+
+  const spawnFloatingDamage = (text: string, isCrit = false) => {
+    const id = Date.now() + Math.random();
+    const x = Math.floor(Math.random() * 60) - 30;
+    setFloatingDamages((prev) => [...prev.slice(-4), { id, text, isCrit, x }]);
+    window.setTimeout(() => {
+      setFloatingDamages((prev) => prev.filter((d) => d.id !== id));
+    }, 950);
+  };
 
   useEffect(() => {
     const receive = (next: SessionState) => setState(next);
@@ -247,7 +275,11 @@ function ViewerPage({ socket }: { socket: Socket }) {
         if (socket.connected) join(); else socket.once("connect", join);
       } catch { localStorage.removeItem(`crowdraid:player:${code}`); }
     }
-    return () => { socket.off("session:state", receive); socket.off("viewer:rank", receiveRank); };
+    return () => {
+      socket.off("session:state", receive);
+      socket.off("viewer:rank", receiveRank);
+      if (cooldownTimerRef.current) window.clearTimeout(cooldownTimerRef.current);
+    };
   }, [socket, code]);
 
   useEffect(() => {
@@ -260,6 +292,7 @@ function ViewerPage({ socket }: { socket: Socket }) {
   const joinGame = (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    triggerHaptic(45);
     socket.emit("viewer:join", { code, nickname }, (result: ServerAck) => {
       if (!result.ok) { setError(result.error); return; }
       const id = result.playerId ?? crypto.randomUUID();
@@ -270,17 +303,35 @@ function ViewerPage({ socket }: { socket: Socket }) {
       localStorage.setItem(`crowdraid:player:${code}`, JSON.stringify({ id, nickname: nickname.trim() }));
     });
   };
+
+  const handleCooldown = () => {
+    setAttackBusy(true);
+    if (cooldownTimerRef.current) window.clearTimeout(cooldownTimerRef.current);
+    cooldownTimerRef.current = window.setTimeout(() => {
+      setAttackBusy(false);
+    }, 800);
+  };
+
   const attack = () => {
     if (attackBusy || state?.status !== "live") return;
-    setAttackBusy(true);
+    handleCooldown();
+    const isRage = Boolean(state?.rageActive);
+    triggerHaptic(isRage ? [45, 30, 60] : 35);
+
     socket.emit("game:action", {}, (result: ServerAck) => {
-      setAttackBusy(false);
-      if (!result.ok) { setFeedback(result.error); return; }
-      setFeedback(`Bien joué ! +${result.points ?? 0} points pour toi.`);
+      if (!result.ok) {
+        setFeedback(result.error);
+        return;
+      }
+      const pts = result.points ?? (isRage ? 20 : 10);
+      spawnFloatingDamage(`+${pts} ${isRage ? "CRIT!" : "DMG"}`, isRage);
+      setFeedback(`Bien joué ! +${pts} points pour toi.`);
       window.setTimeout(() => setFeedback("Ton attaque compte pour l’équipe."), 1800);
     });
   };
+
   const shareSession = async () => {
+    triggerHaptic(25);
     if (navigator.share) {
       try { await navigator.share({ title: "Rejoins mon raid !", url: window.location.href }); } catch { /* Viewer cancelled sharing. */ }
       return;
@@ -294,13 +345,27 @@ function ViewerPage({ socket }: { socket: Socket }) {
   };
 
   const myScore = state?.topPlayers.find((player) => player.id === playerId)?.score ?? 0;
+
   const submitAnswer = (answer: string) => {
-    if (attackBusy) return;
-    setAttackBusy(true);
+    if (attackBusy || state?.status !== "live") return;
+    handleCooldown();
+    triggerHaptic(30);
+
     socket.emit("game:action", { answer }, (result: ServerAck) => {
-      setAttackBusy(false);
-      if (!result.ok) setFeedback(result.error);
-      else setFeedback((result.points ?? 0) > 0 ? `Bien joué ! +${result.points} points.` : "Pas cette fois ! Reste dans la partie.");
+      if (!result.ok) {
+        setFeedback(result.error);
+        return;
+      }
+      const pts = result.points ?? 0;
+      if (pts > 0) {
+        triggerHaptic([40, 30, 80]);
+        spawnFloatingDamage(`+${pts} PTS!`, pts >= 30);
+        setFeedback(`Bien joué ! +${pts} points.`);
+      } else {
+        triggerHaptic(70);
+        spawnFloatingDamage("MANQUÉ", false);
+        setFeedback("Pas cette fois ! Reste dans la partie.");
+      }
     });
   };
 
@@ -308,7 +373,17 @@ function ViewerPage({ socket }: { socket: Socket }) {
     {!joined ? <section className="join-screen"><div className="join-decoration decor-one" /><div className="join-decoration decor-two" /><div className="join-card"><div className="join-game-icon"><Swords size={23} /></div><span className="join-overline">TU ES INVITÉ·E À</span><h1>Le chat contre<br /><span>le boss.</span></h1><p>Rejoins la partie du streamer. Choisis ton pseudo et attaque avec tout le monde.</p><form onSubmit={joinGame}><label htmlFor="nickname">Ton pseudo</label><div className="name-input-wrap"><span>@</span><input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value.slice(0, 16))} placeholder="ex. Luma" maxLength={16} autoComplete="nickname" required /></div>{error && <div className="inline-error" role="alert">{error}</div>}<button className="button button-primary button-block" type="submit" disabled={!nickname.trim()}><Gamepad2 size={17} /> Rejoindre la partie <ArrowRight size={16} /></button></form><div className="join-safe-note"><LockKeyhole size={13} /> Pas de compte. Pas de téléchargement. Juste du jeu.</div></div></section>
     : <section className="controller-screen"><div className="controller-greeting"><div><span className="join-overline">SESSION {code}</span><h1>À toi de jouer, <span>{nickname}.</span></h1></div><span className="controller-player-count"><Users size={15} /> {state?.playerCount ?? 1} dans le raid</span></div><div className={`mobile-boss-card ${state?.rageActive ? "boss-raging" : ""}`}><div className="mobile-boss-top"><span className="mobile-boss-avatar"><GameIcon gameId={state?.gameId} size={21} /></span><div><small>JEU EN COURS</small><strong>{GAMES.find((game) => game.id === state?.gameId)?.name}</strong></div><span className="mobile-boss-state">{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</span></div><div className="mobile-hp-row"><span>SCORE DE TON ÉQUIPE</span><b>{(state?.totalDamage ?? 0).toLocaleString("fr-FR")}<small> pts</small></b></div><div className="mobile-health"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><div className="boss-status-copy">{state?.lastEvent || "Ton équipe est prête."}</div></div>
       <div className="your-score-card"><span className="your-score-icon"><Zap size={17} /></span><span><small>TES DÉGÂTS</small><strong>{myScore} <em>pts</em></strong></span><span className="your-rank-pill">{myRank > 0 ? `#${myRank}` : "—"}</span></div>
-      {state?.status === "waiting" ? <div className="controller-wait"><div className="wait-pulse"><Radio size={22} /></div><strong>Le streamer prépare la partie</strong><span>{GAMES.find((game) => game.id === state?.gameId)?.name} · {state?.durationMinutes} minutes</span></div> : state?.status === "ended" ? <div className="controller-wait controller-ended"><div className="wait-pulse"><Trophy size={22} /></div><strong>Bien joué, {nickname} !</strong><span>Merci d’avoir joué avec la communauté.</span></div> : state?.gameId === "quiz" ? <div className="viewer-game-control"><strong>{state.prompt}</strong><div>{state.options.map((option) => <button key={option} disabled={attackBusy} onClick={() => submitAnswer(option)}>{option}</button>)}</div><p className="attack-feedback">{feedback}</p></div> : state?.gameId === "jump" ? <div className="viewer-game-control"><strong>{state.target === "Obstacle" ? "Obstacle ! Saute maintenant !" : "Prêt ? Un obstacle arrive…"}</strong><div><button className="jump-button" disabled={attackBusy} onClick={() => submitAnswer("SAUTER")}><ArrowUp size={24} /> SAUTER</button></div><p className="attack-feedback">{feedback}</p></div> : state?.gameId === "marble" ? <div className="viewer-game-control"><strong>{cueVisible ? <>Virage à <span>{state.target}</span> !</> : "Guide ta bille sur le parcours"}</strong><div>{state.options.map((direction) => <button key={direction} disabled={attackBusy} onClick={() => submitAnswer(direction)}>{direction === "Gauche" ? <ArrowLeft size={19} /> : <ArrowRight size={19} />}{direction}</button>)}</div><p className="attack-feedback">{feedback}</p></div> : state?.gameId === "arena" ? <div className="viewer-game-control"><strong>Choisis le côté de ta poussée !</strong><div>{state.options.map((direction) => <button key={direction} disabled={attackBusy} onClick={() => submitAnswer(direction)}>{direction === "Pousser gauche" ? <ArrowLeft size={20} /> : <ArrowRight size={20} />}<br />{direction}</button>)}</div><p className="attack-feedback">{feedback}</p></div> : <><button className={`attack-button ${attackBusy ? "attack-pressed" : ""}`} onClick={attack} disabled={attackBusy}><span className="attack-button-inner"><Swords size={30} /><strong>{attackBusy ? "EN JEU…" : "ATTAQUER"}<small>{GAMES.find((game) => game.id === state?.gameId)?.description}</small></strong><ArrowRight size={19} /></span></button><p className="attack-feedback" aria-live="polite"><Sparkles size={14} /> {feedback}</p></>}
+      {state?.status === "waiting" ? <div className="controller-wait"><div className="wait-pulse"><Radio size={22} /></div><strong>Le streamer prépare la partie</strong><span>{GAMES.find((game) => game.id === state?.gameId)?.name} · {state?.durationMinutes} minutes</span></div> : state?.status === "ended" ? <div className="controller-wait controller-ended"><div className="wait-pulse"><Trophy size={22} /></div><strong>Bien joué, {nickname} !</strong><span>{myRank > 0 ? `Tu finis au rang #${myRank} avec ${myScore} points !` : "Merci d’avoir joué avec la communauté."}</span></div> : state?.gameId === "quiz" ? <div className="viewer-game-control floating-target-wrap">
+        <div className="floating-container">{floatingDamages.map((d) => <span key={d.id} className={`floating-damage ${d.isCrit ? "damage-crit" : ""}`} style={{ left: `calc(50% + ${d.x}px)` }}>{d.text}</span>)}</div>
+        <strong>{state.prompt}</strong><div>{state.options.map((option) => <button key={option} disabled={attackBusy} onClick={() => submitAnswer(option)}>{option}</button>)}</div><p className="attack-feedback">{feedback}</p></div> : state?.gameId === "jump" ? <div className="viewer-game-control floating-target-wrap">
+        <div className="floating-container">{floatingDamages.map((d) => <span key={d.id} className={`floating-damage ${d.isCrit ? "damage-crit" : ""}`} style={{ left: `calc(50% + ${d.x}px)` }}>{d.text}</span>)}</div>
+        <strong>{state.target === "Obstacle" ? "Obstacle ! Saute maintenant !" : "Prêt ? Un obstacle arrive…"}</strong><div><button className="jump-button" disabled={attackBusy} onClick={() => submitAnswer("SAUTER")}><ArrowUp size={24} /> SAUTER</button></div><p className="attack-feedback">{feedback}</p></div> : state?.gameId === "marble" ? <div className="viewer-game-control floating-target-wrap">
+        <div className="floating-container">{floatingDamages.map((d) => <span key={d.id} className={`floating-damage ${d.isCrit ? "damage-crit" : ""}`} style={{ left: `calc(50% + ${d.x}px)` }}>{d.text}</span>)}</div>
+        <strong>{cueVisible ? <>Virage à <span>{state.target}</span> !</> : "Guide ta bille sur le parcours"}</strong><div>{state.options.map((direction) => <button key={direction} disabled={attackBusy} onClick={() => submitAnswer(direction)}>{direction === "Gauche" ? <ArrowLeft size={19} /> : <ArrowRight size={19} />}{direction}</button>)}</div><p className="attack-feedback">{feedback}</p></div> : state?.gameId === "arena" ? <div className="viewer-game-control floating-target-wrap">
+        <div className="floating-container">{floatingDamages.map((d) => <span key={d.id} className={`floating-damage ${d.isCrit ? "damage-crit" : ""}`} style={{ left: `calc(50% + ${d.x}px)` }}>{d.text}</span>)}</div>
+        <strong>Choisis le côté de ta poussée !</strong><div>{state.options.map((direction) => <button key={direction} disabled={attackBusy} onClick={() => submitAnswer(direction)}>{direction === "Pousser gauche" ? <ArrowLeft size={20} /> : <ArrowRight size={20} />}<br />{direction}</button>)}</div><p className="attack-feedback">{feedback}</p></div> : <div className="floating-target-wrap">
+        <div className="floating-container">{floatingDamages.map((d) => <span key={d.id} className={`floating-damage ${d.isCrit ? "damage-crit" : ""}`} style={{ left: `calc(50% + ${d.x}px)` }}>{d.text}</span>)}</div>
+        <button className={`attack-button ${attackBusy ? "attack-pressed" : ""} ${state?.rageActive ? "attack-button-rage" : ""}`} onClick={attack} disabled={attackBusy}><span className="attack-button-inner"><Swords size={30} /><strong>{attackBusy ? "RECHARGE…" : state?.rageActive ? "ATTAQUE RAGE (×2) !" : "ATTAQUER"}<small>{GAMES.find((game) => game.id === state?.gameId)?.description}</small></strong><ArrowRight size={19} /></span>{attackBusy && <span className="attack-cooldown-bar" />}</button><p className="attack-feedback" aria-live="polite"><Sparkles size={14} /> {feedback}</p></div>}
       <div className="controller-bottom"><div><Trophy size={16} /><span><strong>Top raid</strong><small>{state?.topPlayers.slice(0, 3).map((player) => player.nickname).join(" · ") || "Le classement arrive bientôt"}</small></span></div><button onClick={shareSession} aria-label="Partager la partie"><ArrowUpRight size={18} /></button></div>
     </section>}
   </main>;

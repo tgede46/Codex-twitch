@@ -385,3 +385,117 @@ a { color: inherit; text-decoration: none; }
 .viewer-page .viewer-game-control { border-radius: 13px; }
 .viewer-page .viewer-game-control button:hover:not(:disabled) { background: #383144; border-color: #76649c; }
 .viewer-page .attack-button { letter-spacing: .015em; }
+
+/* Juiciness: Floating damage numbers & feedback */
+.floating-target-wrap { position: relative; }
+.floating-container {
+  pointer-events: none;
+  position: absolute;
+  top: -24px;
+  left: 0;
+  right: 0;
+  height: 50px;
+  overflow: visible;
+  z-index: 20;
+}
+.floating-damage {
+  position: absolute;
+  top: 10px;
+  transform: translateX(-50%);
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  color: #ffde72;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7), 0 0 14px rgba(255, 222, 114, 0.5);
+  animation: floatDamage 0.95s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+  white-space: nowrap;
+}
+.floating-damage.damage-crit {
+  font-size: 28px;
+  color: #ff6088;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 96, 136, 0.7);
+}
+@keyframes floatDamage {
+  0% { opacity: 0; transform: translate(-50%, 15px) scale(0.6); }
+  20% { opacity: 1; transform: translate(-50%, -10px) scale(1.15); }
+  75% { opacity: 1; transform: translate(-50%, -35px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -55px) scale(0.85); }
+}
+
+/* Attack Button Enhancements & Cooldown */
+.attack-button {
+  overflow: hidden;
+  position: relative;
+}
+.attack-cooldown-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #c5a6ff, #ffffff);
+  width: 100%;
+  animation: cooldownFill 0.8s linear forwards;
+}
+@keyframes cooldownFill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.attack-button-rage {
+  background: linear-gradient(130deg, #9933cc, #e63966) !important;
+  box-shadow: 0 5px 0 #6e1c45, 0 0 25px rgba(230, 57, 102, 0.45) !important;
+  animation: ragePulse 1.2s infinite alternate ease-in-out;
+}
+@keyframes ragePulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  100% { transform: scale(1.02); filter: brightness(1.18); }
+}
+.rage-pulsing {
+  animation: ragePulse 1s infinite alternate ease-in-out;
+  border-color: #ff769e !important;
+  color: #ffc9d6 !important;
+  box-shadow: 0 0 16px rgba(255, 118, 158, 0.4);
+}
+
+/* Transparent OBS Overlay Mode */
+.overlay-page-transparent {
+  background: transparent !important;
+}
+.overlay-stage-transparent {
+  background: transparent !important;
+}
+.overlay-stage-transparent:before {
+  display: none !important;
+}
+.overlay-stage-transparent .overlay-top-list {
+  backdrop-filter: blur(12px);
+  background: rgba(22, 17, 36, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.overlay-stage-transparent .overlay-boss-label {
+  backdrop-filter: blur(12px);
+  background: rgba(22, 17, 36, 0.78);
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.overlay-stage-transparent .overlay-live {
+  backdrop-filter: blur(12px);
+  background: rgba(22, 17, 36, 0.78);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+.overlay-join-card-compact {
+  padding: 6px 10px;
+  backdrop-filter: blur(10px);
+}
+.overlay-join-card-compact strong {
+  font-size: 10px;
+}
+.overlay-join-card-compact span {
+  font-size: 8px;
+}
+.overlay-join-card-compact b {
+  font-size: 9px;
+}
+
