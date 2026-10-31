@@ -22,6 +22,7 @@ export interface SessionRow {
   boss_hp: number;
   boss_max_hp: number;
   streamer_participates: number;
+  reward_enabled: number;
   rage_until: number;
   last_rage_at: number;
   last_event: string;
@@ -58,6 +59,7 @@ export function initSchema() {
     boss_hp        INTEGER NOT NULL DEFAULT 1000,
     boss_max_hp    INTEGER NOT NULL DEFAULT 1000,
     streamer_participates INTEGER NOT NULL DEFAULT 0,
+    reward_enabled INTEGER NOT NULL DEFAULT 0,
     rage_until     INTEGER NOT NULL DEFAULT 0,
     last_rage_at   INTEGER NOT NULL DEFAULT 0,
     last_event     TEXT NOT NULL DEFAULT '',
@@ -87,6 +89,9 @@ export function initSchema() {
   } catch {}
   try {
     db.exec("ALTER TABLE players ADD COLUMN badge TEXT DEFAULT ''");
+  } catch {}
+  try {
+    db.exec("ALTER TABLE sessions ADD COLUMN reward_enabled INTEGER NOT NULL DEFAULT 0");
   } catch {}
 }
 
@@ -213,4 +218,3 @@ export function getViewerSessionsHistory(playerIds: string[]) {
 
 // Initialise le schéma à l'import du module.
 initSchema();
-

@@ -31,6 +31,8 @@ export type SessionState = {
   bossMaxHp: number;
   playerCount: number;
   streamerParticipates: boolean;
+  rewardEnabled: boolean;
+  rewardWinner?: PlayerScore | null;
   totalDamage: number;
   topPlayers: PlayerScore[];
   rageActive: boolean;

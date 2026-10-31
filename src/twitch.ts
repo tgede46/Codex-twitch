@@ -4,33 +4,33 @@ import type { TwitchUser } from "./types";
 export const DEMO_STREAMERS: TwitchUser[] = [
   {
     id: "twitch-streamer-1",
-    login: "zerator",
-    displayName: "ZeratoR",
-    avatar: "https://static-cdn.jtvnw.net/jtv_user_pictures/4256f157-ba71-4648-b4b1-e0c2f2560381-profile_image-150x150.png",
+    login: "raidmaster",
+    displayName: "RaidMaster",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=RaidMaster",
     isStreamer: true,
     role: "streamer",
   },
   {
     id: "twitch-streamer-2",
-    login: "kamet0",
-    displayName: "Kamet0",
-    avatar: "https://static-cdn.jtvnw.net/jtv_user_pictures/a171be99-dfd4-4a47-a7eb-944a957d3419-profile_image-150x150.png",
+    login: "pixelqueen",
+    displayName: "PixelQueen",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=PixelQueen",
     isStreamer: true,
     role: "streamer",
   },
   {
     id: "twitch-streamer-3",
-    login: "antoinedaniel",
-    displayName: "AntoineDaniel",
-    avatar: "https://static-cdn.jtvnw.net/jtv_user_pictures/76378eeb-4a11-4770-98fe-897dbfc73ba0-profile_image-150x150.png",
+    login: "bosscaller",
+    displayName: "BossCaller",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=BossCaller",
     isStreamer: true,
     role: "streamer",
   },
   {
     id: "twitch-streamer-4",
-    login: "pokimane",
-    displayName: "Pokimane",
-    avatar: "https://static-cdn.jtvnw.net/jtv_user_pictures/60e0a30b-0442-4fcf-847e-2cfc6a0c0b9a-profile_image-150x150.png",
+    login: "chatcaptain",
+    displayName: "ChatCaptain",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=ChatCaptain",
     isStreamer: true,
     role: "streamer",
   },
@@ -39,35 +39,35 @@ export const DEMO_STREAMERS: TwitchUser[] = [
 export const DEMO_VIEWERS: TwitchUser[] = [
   {
     id: "twitch-viewer-1",
-    login: "speedkillz",
-    displayName: "SpeedKillZ",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=SpeedKillZ",
+    login: "raidrookie",
+    displayName: "RaidRookie",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=RaidRookie",
     role: "sub",
   },
   {
     id: "twitch-viewer-2",
-    login: "n3buladx",
-    displayName: "N3bulaDx",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=N3bulaDx",
+    login: "pixelpilot",
+    displayName: "PixelPilot",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=PixelPilot",
     role: "vip",
   },
   {
     id: "twitch-viewer-3",
-    login: "xxdragonslayer99",
-    displayName: "XxDragonSlayer99",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=DragonSlayer",
+    login: "modscout",
+    displayName: "ModScout",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=ModScout",
     role: "mod",
   },
   {
     id: "twitch-viewer-4",
-    login: "progamerxd",
-    displayName: "ProGamerXD",
-    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=ProGamerXD",
+    login: "chatplayer",
+    displayName: "ChatPlayer",
+    avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=ChatPlayer",
     role: "viewer",
   },
 ];
 
-type TwitchSessionRole = "streamer" | "viewer";
+export type TwitchSessionRole = "streamer" | "viewer";
 
 function twitchUserKey(role: TwitchSessionRole): string {
   return `crowdraid:twitch_user:${role}`;
@@ -117,4 +117,26 @@ export function parseTwitchHashToken(): string | null {
   const hash = window.location.hash.substring(1);
   const params = new URLSearchParams(hash);
   return params.get("access_token");
+}
+
+export function beginTwitchLogin(role: TwitchSessionRole): void {
+  const returnTo = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(`/api/twitch/login?role=${role}&returnTo=${encodeURIComponent(returnTo)}`);
+}
+
+export async function loadAuthenticatedTwitchUser(role: TwitchSessionRole): Promise<TwitchUser | null> {
+  try {
+    const response = await fetch(`/api/twitch/me?role=${role}`, { credentials: "same-origin" });
+    if (!response.ok) return null;
+    const payload = await response.json() as { user?: TwitchUser };
+    const user = payload.user;
+    if (!user || user.isStreamer !== (role === "streamer")) return null;
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+export async function logoutTwitchUser(role: TwitchSessionRole): Promise<void> {
+  await fetch(`/api/twitch/logout?role=${role}`, { method: "POST", credentials: "same-origin" }).catch(() => undefined);
 }

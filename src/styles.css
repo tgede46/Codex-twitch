@@ -47,6 +47,22 @@ a { color: inherit; text-decoration: none; }
 .icon-button { align-items: center; background: transparent; border: 0; border-radius: 9px; color: #817990; cursor: pointer; display: inline-flex; height: 36px; justify-content: center; width: 36px; }
 .icon-button:hover { background: #f7f4fc; color: var(--purple); }
 .inline-error { background: #fff3f3; border: 1px solid #ffdfdf; border-radius: 9px; color: #a63c4b; font-size: 12px; margin-top: 10px; padding: 9px 11px; }
+.reward-strip { align-items: center; background: #fff8e9; border: 1px solid #f3dfae; border-radius: 14px; color: #74541b; display: flex; gap: 12px; justify-content: space-between; margin: 16px 0; padding: 13px 15px; }
+.reward-icon { align-items: center; background: #ffe8ad; border-radius: 10px; display: inline-flex; height: 36px; justify-content: center; min-width: 36px; }
+.reward-strip > div { display: grid; flex: 1; gap: 3px; }
+.reward-strip strong { color: #5a4010; font-size: 13px; }
+.reward-strip span { color: #8b6c32; font-size: 11px; line-height: 1.4; }
+.reward-note { align-items: center; color: #8b6c32; display: inline-flex; gap: 5px; justify-content: center; }
+.game-tutorial-backdrop { align-items: center; background: #21183acc; display: flex; inset: 0; justify-content: center; padding: 20px; position: fixed; z-index: 20; }
+.game-tutorial-card { background: #fff; border: 1px solid #eee8fb; border-radius: 22px; box-shadow: 0 24px 70px #21183a42; max-width: 430px; padding: 28px; width: 100%; }
+.game-tutorial-icon { align-items: center; background: #eee8ff; border-radius: 14px; color: var(--purple); display: flex; height: 52px; justify-content: center; margin-bottom: 18px; width: 52px; }
+.game-tutorial-card h2 { color: #2b2045; font-family: Manrope, sans-serif; font-size: 26px; letter-spacing: -.04em; margin: 8px 0 7px; }
+.game-tutorial-description { color: #756d84; font-size: 14px; line-height: 1.6; margin: 0 0 18px; }
+.game-tutorial-step { align-items: flex-start; background: #faf8ff; border: 1px solid #eee8fb; border-radius: 12px; color: var(--purple); display: flex; gap: 12px; margin-top: 9px; padding: 13px; }
+.game-tutorial-step span { display: grid; gap: 3px; }
+.game-tutorial-step strong { color: #382b50; font-size: 13px; }
+.game-tutorial-step small { color: #817990; font-size: 12px; line-height: 1.45; }
+.game-tutorial-card .button { margin-top: 20px; }
 
 /* Landing */
 .landing-page { background: radial-gradient(ellipse at 76% 29%, #eee8ff 0, #f9f7ff 35%, #fbfaff 63%); min-height: 100vh; overflow: hidden; }
@@ -1129,5 +1145,3 @@ a { color: inherit; text-decoration: none; }
   color: #d97706 !important;
   filter: drop-shadow(0 0 4px rgba(217, 119, 6, 0.4));
 }
-
-

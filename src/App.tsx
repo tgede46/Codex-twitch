@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, type FormEvent } from "react";
+import { useEffect, useState, useRef, type FormEvent, type ReactNode } from "react";
 import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
 import { QRCodeSVG } from "qrcode.react";
@@ -6,13 +6,13 @@ import { Toaster, toast } from "sonner";
 import {
   ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Brain, Calendar, Check, ChevronDown,
   Circle, CircleHelp, Clock, Copy, Crown, ExternalLink, Flame, Gamepad2, Heart, History, Link2, LockKeyhole,
-  Medal, MonitorPlay, MoreHorizontal, PersonStanding, Play, Radio, RotateCw, Shield, Sparkles,
+  Gift, Medal, MonitorPlay, MoreHorizontal, PersonStanding, Play, Radio, RotateCw, Shield, Sparkles,
   Swords, Trophy, Users, X, Zap,
 } from "lucide-react";
 import { Arena } from "./Arena";
 import { GAMES, type Ack, type GameId, type SessionState, type HostSessionHistory, type ViewerSessionHistory, type TwitchUser } from "./types";
 import { TwitchIcon, TwitchBadge, TwitchLoginModal, TwitchUserCard } from "./TwitchComponents";
-import { getSavedTwitchUser, saveTwitchUser } from "./twitch";
+import { getSavedTwitchUser, loadAuthenticatedTwitchUser, logoutTwitchUser, saveTwitchUser } from "./twitch";
 
 type ServerAck = Ack<{ code?: string; hostToken?: string; playerId?: string; rank?: number; state?: SessionState; damage?: number; points?: number; correct?: boolean }>;
 const socket = io(import.meta.env.DEV ? `${window.location.protocol}//${window.location.hostname}:3001` : undefined);
@@ -312,11 +312,22 @@ function HostPage({ socket }: { socket: Socket }) {
   const setTwitch = (user: TwitchUser | null) => {
     setTwitchUser(user);
     saveTwitchUser(user, "streamer");
+    if (!user) void logoutTwitchUser("streamer");
     if (user) {
       socket.emit("host:set_twitch", { twitchUser: user });
       toast.success(`Connecté en tant que ${user.displayName} sur Twitch`);
     }
   };
+
+  useEffect(() => {
+    void loadAuthenticatedTwitchUser("streamer").then((user) => {
+      if (user) {
+        setTwitchUser(user);
+        saveTwitchUser(user, "streamer");
+        socket.emit("host:set_twitch", { twitchUser: user });
+      }
+    });
+  }, [socket]);
 
   useEffect(() => {
     const receive = (next: SessionState) => setState(next);
@@ -335,10 +346,10 @@ function HostPage({ socket }: { socket: Socket }) {
     return () => { socket.off("session:state", receive); socket.off("connect", join); };
   }, [socket, code, hostToken]);
 
-  const act = (event: "host:start" | "host:rage" | "host:end" | "host:attack") => {
+  const act = (event: "host:start" | "host:rage" | "host:end" | "host:attack" | "host:reward") => {
     socket.emit(event, (result: ServerAck) => {
       if (!result.ok) toast.error(result.error);
-      else toast.success(event === "host:rage" ? "Rage activée · dégâts doublés pendant 10 s" : event === "host:start" ? "La partie est lancée" : event === "host:attack" ? `Tu infliges ${result.damage ?? 10} dégâts` : "Partie terminée");
+      else toast.success(event === "host:rage" ? "Rage activée · dégâts doublés pendant 10 s" : event === "host:start" ? "La partie est lancée" : event === "host:attack" ? `Tu infliges ${result.damage ?? 10} dégâts` : event === "host:reward" ? `Sub promis à ${result.winner ?? "la première place"}` : "Partie terminée");
     });
   };
   const chooseParticipation = (enabled: boolean) => {
@@ -396,6 +407,7 @@ function HostPage({ socket }: { socket: Socket }) {
           </div>
           {state?.status === "waiting" && <section className="game-picker surface-card"><div className="surface-heading"><div><h2>Choisis ton jeu</h2><p>Cinq jeux courts, pensés pour jouer ensemble pendant le live.</p></div><label className="duration-select">DURÉE <select value={state.durationMinutes} onChange={(event) => configure(state.gameId, Number(event.target.value))}>{[3,4,5,6,7,8,9,10].map((min) => <option key={min} value={min}>{min} min</option>)}</select></label></div><div className="game-picker-grid">{GAMES.map((game) => <button key={game.id} className={`game-choice ${state.gameId === game.id ? "game-choice-active" : ""}`} onClick={() => configure(game.id)}><span className="game-choice-icon"><GameIcon gameId={game.id} size={18} /></span><span className="game-choice-meta"><small>{game.genre}</small><strong>{game.name}</strong><em>{game.description}</em></span>{state.gameId === game.id && <Check size={16} className="game-choice-check" />}</button>)}</div></section>}
           <section className="participation-strip"><span className={`participation-icon ${state?.streamerParticipates ? "participation-active" : ""}`}><Gamepad2 size={18} /></span><div className="participation-copy"><strong>{state?.streamerParticipates ? "Tu joues avec le chat" : "Tu animes le live"}</strong><span>{state?.status === "waiting" ? "Choisis si tu veux jouer avec les viewers." : state?.streamerParticipates && state.gameId === "boss" ? "Ta place est dans le classement. Attaque depuis le dashboard." : state?.streamerParticipates ? "Les viewers jouent depuis leur manette pendant que tu animes le live." : "Les viewers jouent pendant que tu commentes."}</span></div>{state?.status === "waiting" ? <button className={`button ${state.streamerParticipates ? "button-white" : "button-primary"}`} onClick={() => chooseParticipation(!state.streamerParticipates)}><Swords size={15} />{state.streamerParticipates ? "Je préfère animer" : "Je participe aussi"}</button> : state?.status === "live" && state.streamerParticipates && state.gameId === "boss" ? <button className="button button-primary" onClick={() => act("host:attack")}><Swords size={15} /> Attaquer le boss</button> : <span className="host-role-locked"><Shield size={14} /> {state?.status === "ended" ? "Partie terminée" : "Rôle choisi pour cette partie"}</span>}</section>
+          {state?.status === "ended" && <section className="reward-strip"><span className="reward-icon"><Gift size={19} /></span><div><strong>{state.rewardEnabled ? `Sub promis à ${state.rewardWinner?.nickname ?? "la première place"}` : "Offrir un sub au gagnant"}</strong><span>{state.rewardEnabled ? "Le streamer doit maintenant offrir le sub manuellement depuis Twitch." : "Le premier du classement recevra un sub offert par le streamer."}</span></div>{!state.rewardEnabled && <button className="button button-primary" onClick={() => act("host:reward")}><Gift size={15} /> Promettre le sub</button>}</section>}
           <div className="dashboard-content-grid">
             <section className="surface-card stream-card">
               <div className="surface-heading"><div><h2>Ton arène</h2><p>Aperçu de ce que ton audience voit sur le stream.</p></div><div className="live-caption"><i /> {state?.status === "live" ? "LIVE" : state?.status === "ended" ? "FINI" : "PRÊT"}</div></div>
@@ -503,6 +515,31 @@ function OverlayPage({ socket }: { socket: Socket }) {
 
 type FloatingDamage = { id: number; text: string; isCrit?: boolean; x: number };
 
+function GameTutorial({ gameId, onClose }: { gameId?: GameId; onClose: () => void }) {
+  const game = GAMES.find((item) => item.id === gameId) ?? GAMES.find((item) => item.id === "boss")!;
+  const instructions: Record<GameId, { action: string; detail: string; icon: ReactNode }> = {
+    boss: { action: "Appuie sur Attaquer", detail: "Chaque attaque inflige des dégâts au boss et augmente ton score. Attends la recharge entre deux coups.", icon: <Swords size={24} /> },
+    quiz: { action: "Choisis la bonne réponse", detail: "Réponds vite : plus tu réponds rapidement, plus tu gagnes de points.", icon: <Brain size={24} /> },
+    jump: { action: "Appuie pour sauter", detail: "Saute lorsque l’obstacle arrive. Chaque action réussie aide toute l’équipe.", icon: <PersonStanding size={24} /> },
+    marble: { action: "Choisis gauche ou droite", detail: "Guide ta bille dans le parcours en suivant la direction affichée.", icon: <Circle size={24} /> },
+    arena: { action: "Pousse dans une direction", detail: "Choisis gauche ou droite pour repousser les adversaires hors de l’arène.", icon: <Shield size={24} /> },
+  };
+  const instruction = instructions[game.id];
+  return (
+    <div className="game-tutorial-backdrop" role="dialog" aria-modal="true" aria-labelledby="game-tutorial-title">
+      <div className="game-tutorial-card">
+        <div className="game-tutorial-icon">{instruction.icon}</div>
+        <span className="join-overline">AVANT DE JOUER</span>
+        <h2 id="game-tutorial-title">{game.name}</h2>
+        <p className="game-tutorial-description">{game.description}</p>
+        <div className="game-tutorial-step"><Gamepad2 size={18} /><span><strong>{instruction.action}</strong><small>{instruction.detail}</small></span></div>
+        <div className="game-tutorial-step"><Trophy size={18} /><span><strong>Le score est en direct</strong><small>Ton rang et tes points se mettent à jour pendant la partie.</small></span></div>
+        <button className="button button-primary button-block" onClick={onClose}><Check size={17} /> Compris, jouer</button>
+      </div>
+    </div>
+  );
+}
+
 function triggerHaptic(pattern: number | number[] = 35) {
   try {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -522,6 +559,7 @@ function ViewerPage({ socket }: { socket: Socket }) {
   const [myRank, setMyRank] = useState(0);
   const [joined, setJoined] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(() => localStorage.getItem("crowdraid:tutorial-seen") !== "1");
   const [state, setState] = useState<SessionState | null>(null);
   const [feedback, setFeedback] = useState("Prêt à attaquer ? Chaque coup aide l’équipe.");
   const [error, setError] = useState("");
@@ -540,6 +578,16 @@ function ViewerPage({ socket }: { socket: Socket }) {
       setFloatingDamages((prev) => prev.filter((d) => d.id !== id));
     }, 950);
   };
+
+  useEffect(() => {
+    void loadAuthenticatedTwitchUser("viewer").then((user) => {
+      if (user) {
+        setTwitchUser(user);
+        setNickname(user.displayName);
+        saveTwitchUser(user, "viewer");
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const receive = (next: SessionState) => setState(next);
@@ -646,6 +694,10 @@ function ViewerPage({ socket }: { socket: Socket }) {
   };
 
   const myScore = state?.topPlayers.find((player) => player.id === playerId)?.score ?? 0;
+  const closeTutorial = () => {
+    localStorage.setItem("crowdraid:tutorial-seen", "1");
+    setShowTutorial(false);
+  };
 
   const submitAnswer = (answer: string) => {
     if (attackBusy || state?.status !== "live") return;
@@ -681,6 +733,7 @@ function ViewerPage({ socket }: { socket: Socket }) {
       isStreamerMode={false}
     />
     {showHistory && <ViewerHistoryDrawer socket={socket} onClose={() => setShowHistory(false)} />}
+    {!joined && showTutorial && <GameTutorial gameId={state?.gameId} onClose={closeTutorial} />}
     <header className="viewer-header">
       <Brand compact />
       <div className="viewer-header-right">
@@ -702,7 +755,7 @@ function ViewerPage({ socket }: { socket: Socket }) {
 
           {twitchUser ? (
             <div style={{ marginBottom: 14 }}>
-              <TwitchUserCard user={twitchUser} onLogout={() => { setTwitchUser(null); saveTwitchUser(null, "viewer"); }} />
+              <TwitchUserCard user={twitchUser} onLogout={() => { setTwitchUser(null); saveTwitchUser(null, "viewer"); void logoutTwitchUser("viewer"); }} />
             </div>
           ) : (
             <button
@@ -783,6 +836,7 @@ function ViewerPage({ socket }: { socket: Socket }) {
             <div className="wait-pulse"><Trophy size={22} /></div>
             <strong>Bien joué, {nickname} !</strong>
             <span>{myRank > 0 ? `Tu finis au rang #${myRank} avec ${myScore} points !` : "Merci d’avoir joué avec la communauté."}</span>
+            {state.rewardEnabled && <span className="reward-note"><Gift size={15} /> Sub offert au gagnant : <strong>{state.rewardWinner?.nickname ?? "première place"}</strong></span>}
           </div>
         ) : state?.gameId === "quiz" ? (
           <div className="viewer-game-control floating-target-wrap">

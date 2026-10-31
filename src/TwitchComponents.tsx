@@ -1,8 +1,8 @@
 // src/TwitchComponents.tsx — Composants Twitch officiels (Bouton, Badge, Avatar, Modal de connexion)
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Shield, Star, Crown, X, Sparkles, LogOut } from "lucide-react";
 import type { TwitchUser } from "./types";
-import { DEMO_STREAMERS, DEMO_VIEWERS, createCustomTwitchUser, saveTwitchUser } from "./twitch";
+import { beginTwitchLogin, DEMO_STREAMERS, DEMO_VIEWERS, createCustomTwitchUser, saveTwitchUser } from "./twitch";
 
 export function TwitchIcon({ size = 18, className = "" }: { size?: number; className?: string }) {
   return (
@@ -66,6 +66,14 @@ interface TwitchLoginModalProps {
 export function TwitchLoginModal({ isOpen, onClose, onSelectUser, isStreamerMode = false }: TwitchLoginModalProps) {
   const [customName, setCustomName] = useState("");
   const [selectedRole, setSelectedRole] = useState<TwitchUser["role"]>(isStreamerMode ? "streamer" : "sub");
+  const [oauthConfigured, setOauthConfigured] = useState(false);
+
+  useEffect(() => {
+    void fetch("/api/twitch/config")
+      .then((response) => response.json() as Promise<{ configured?: boolean }>)
+      .then((config) => setOauthConfigured(Boolean(config.configured)))
+      .catch(() => setOauthConfigured(false));
+  }, []);
 
   if (!isOpen) return null;
 
@@ -105,6 +113,12 @@ export function TwitchLoginModal({ isOpen, onClose, onSelectUser, isStreamerMode
         </div>
 
         <div className="twitch-modal-body">
+          {oauthConfigured && (
+            <button type="button" className="button button-twitch button-block" onClick={() => beginTwitchLogin(isStreamerMode ? "streamer" : "viewer")}>
+              <TwitchIcon size={17} />
+              <span>Se connecter avec Twitch</span>
+            </button>
+          )}
           <div className="twitch-section-label">
             <span>COMPTES TWITCH DE DÉMO (1-CLIC)</span>
           </div>

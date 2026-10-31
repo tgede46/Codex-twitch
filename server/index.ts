@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Server } from "socket.io";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { GAMES, type GameId, type SessionState, type TwitchUser } from "../src/types.ts";
 import { db, type SessionRow, type PlayerRow, getHostSessionsHistory, getViewerSessionsHistory } from "./db.ts";
 import type { SQLInputValue } from "node:sqlite";
@@ -10,8 +11,17 @@ import type { SQLInputValue } from "node:sqlite";
 // ----------------------------------------------------
 
 const app = express();
+type RequestWithRawBody = express.Request & { rawBody?: Buffer };
+app.use(express.json({ verify: (req, _res, buffer) => { (req as RequestWithRawBody).rawBody = buffer; } }));
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: true } });
+type TwitchSessionRole = "streamer" | "viewer";
+type TwitchAuthSession = { user: TwitchUser; accessToken: string; expiresAt: number };
+type TwitchOAuthState = { role: TwitchSessionRole; returnTo: string; createdAt: number };
+const twitchAuthSessions = new Map<string, TwitchAuthSession>();
+const twitchOAuthStates = new Map<string, TwitchOAuthState>();
+const twitchBroadcasterSessions = new Map<string, string>();
+const twitchChatLastAttack = new Map<string, number>();
 
 // --- Etats partagés (nécessaires pour le classage et le chrono) ---
 
@@ -34,6 +44,81 @@ function randomCode(length = 5): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(length)))
     .map((byte) => codeAlphabet[byte % codeAlphabet.length])
     .join("");
+}
+
+function parseCookies(header = ""): Record<string, string> {
+  return Object.fromEntries(header.split(";").map((part) => {
+    const [key, ...value] = part.trim().split("=");
+    return [key, decodeURIComponent(value.join("=") || "")];
+  }).filter(([key]) => key));
+}
+
+function twitchConfig() {
+  return {
+    clientId: process.env.TWITCH_CLIENT_ID || "",
+    clientSecret: process.env.TWITCH_CLIENT_SECRET || "",
+  };
+}
+
+function twitchEventSubConfig() {
+  return {
+    callback: process.env.TWITCH_EVENTSUB_CALLBACK_URL || "",
+    secret: process.env.TWITCH_EVENTSUB_SECRET || "",
+  };
+}
+
+async function subscribeToTwitchChat(user: TwitchUser, auth: TwitchAuthSession): Promise<void> {
+  const { clientId } = twitchConfig();
+  const { callback, secret } = twitchEventSubConfig();
+  if (!clientId || !callback || !secret) return;
+  const response = await fetch("https://api.twitch.tv/helix/eventsub/subscriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${auth.accessToken}`, "Client-Id": clientId, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "channel.chat.message",
+      version: "1",
+      condition: { broadcaster_user_id: user.id, user_id: user.id },
+      transport: { method: "webhook", callback, secret },
+    }),
+  });
+  if (!response.ok && response.status !== 409) {
+    console.error("Twitch EventSub subscription failed:", response.status, await response.text());
+  }
+}
+
+function isValidTwitchSignature(req: RequestWithRawBody): boolean {
+  const { secret } = twitchEventSubConfig();
+  const messageId = req.header("Twitch-Eventsub-Message-Id") ?? "";
+  const timestamp = req.header("Twitch-Eventsub-Message-Timestamp") ?? "";
+  const signature = req.header("Twitch-Eventsub-Message-Signature") ?? "";
+  if (!secret || !messageId || !timestamp || !signature || !req.rawBody) return false;
+  const expected = `sha256=${createHmac("sha256", secret).update(messageId + timestamp + req.rawBody.toString("utf8")).digest("hex")}`;
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
+function twitchRedirectUri(req: express.Request): string {
+  return process.env.TWITCH_REDIRECT_URI || `${req.protocol}://${req.get("host")}/api/twitch/callback`;
+}
+
+function safeReturnTo(value: unknown): string {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : "/";
+}
+
+function setCookie(res: express.Response, name: string, value: string, maxAge: number): void {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  res.setHeader("Set-Cookie", `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`);
+}
+
+function currentTwitchSession(req: express.Request, role: TwitchSessionRole): TwitchAuthSession | null {
+  const sessionId = parseCookies(req.headers.cookie)[`crowdraid_twitch_session_${role}`];
+  const session = sessionId ? twitchAuthSessions.get(sessionId) : undefined;
+  if (!session || session.expiresAt <= Date.now()) {
+    if (sessionId) twitchAuthSessions.delete(sessionId);
+    return null;
+  }
+  return session.user.isStreamer === (role === "streamer") ? session : null;
 }
 
 // --- Helpers SQLite ---
@@ -115,6 +200,8 @@ function publicState(session: SessionRow): SessionState {
     bossMaxHp: session.boss_max_hp,
     playerCount: onlineCount,
     streamerParticipates: session.streamer_participates === 1,
+    rewardEnabled: session.reward_enabled === 1,
+    rewardWinner: session.reward_enabled === 1 ? topPlayers[0] ?? null : null,
     totalDamage,
     topPlayers,
     rageActive: session.rage_until > Date.now(),
@@ -157,6 +244,7 @@ io.on("connection", (socket) => {
       boss_hp: 1000,
       boss_max_hp: 1000,
       streamer_participates: 0,
+      reward_enabled: 0,
       rage_until: 0,
       last_rage_at: 0,
       last_event: "",
@@ -167,9 +255,9 @@ io.on("connection", (socket) => {
       created_at: now,
       ended_at: null,
     };
-    db.prepare("INSERT INTO sessions (code, host_token, status, game_id, duration_minutes, remaining_seconds, boss_hp, boss_max_hp, streamer_participates, rage_until, last_rage_at, last_event, prompt, options, target, question_started_at, created_at, ended_at) VALUES (@code, @host_token, @status, @game_id, @duration_minutes, @remaining_seconds, @boss_hp, @boss_max_hp, @streamer_participates, @rage_until, @last_rage_at, @last_event, @prompt, @options, @target, @question_started_at, @created_at, @ended_at)").run({
+    db.prepare("INSERT INTO sessions (code, host_token, status, game_id, duration_minutes, remaining_seconds, boss_hp, boss_max_hp, streamer_participates, reward_enabled, rage_until, last_rage_at, last_event, prompt, options, target, question_started_at, created_at, ended_at) VALUES (@code, @host_token, @status, @game_id, @duration_minutes, @remaining_seconds, @boss_hp, @boss_max_hp, @streamer_participates, @reward_enabled, @rage_until, @last_rage_at, @last_event, @prompt, @options, @target, @question_started_at, @created_at, @ended_at)").run({
       code, host_token: session.host_token, status: "waiting", game_id: "boss", duration_minutes: 5, remaining_seconds: 300,
-      boss_hp: 1000, boss_max_hp: 1000, streamer_participates: 0, rage_until: 0, last_rage_at: 0, last_event: "",
+      boss_hp: 1000, boss_max_hp: 1000, streamer_participates: 0, reward_enabled: 0, rage_until: 0, last_rage_at: 0, last_event: "",
       prompt: "Quelle planète est surnommée la planète rouge ?", options: JSON.stringify(["Vénus", "Mars", "Jupiter", "Mercure"]),
       target: "Mars", question_started_at: now, created_at: now, ended_at: null,
     });
@@ -202,6 +290,9 @@ io.on("connection", (socket) => {
       return;
     }
     streamerTwitchProfiles.set(session.code, twitchUser);
+    twitchBroadcasterSessions.set(twitchUser.id, session.code);
+    const auth = [...twitchAuthSessions.values()].find((candidate) => candidate.user.id === twitchUser.id && candidate.user.isStreamer);
+    if (auth) void subscribeToTwitchChat(twitchUser, auth);
     ack?.({ ok: true });
     publish(session);
   });
@@ -474,6 +565,27 @@ io.on("connection", (socket) => {
     publish(session);
   });
 
+  socket.on("host:reward", (ack?: (result: unknown) => void) => {
+    const session = findSession(socket.data.code as string);
+    if (!session || socket.data.role !== "host" || session.host_token !== socket.data.hostToken) {
+      ack?.({ ok: false, error: "Action réservée au streamer." });
+      return;
+    }
+    if (session.status !== "ended") {
+      ack?.({ ok: false, error: "La récompense est disponible à la fin de la partie." });
+      return;
+    }
+    const winner = getPlayers(session.code)[0];
+    if (!winner) {
+      ack?.({ ok: false, error: "Aucun joueur ne peut recevoir la récompense." });
+      return;
+    }
+    updateSession(session.code, { reward_enabled: 1, last_event: `${winner.nickname} gagne un sub offert par le streamer !` });
+    const nextSession = findSession(session.code);
+    if (nextSession) publish(nextSession);
+    ack?.({ ok: true, winner: winner.nickname });
+  });
+
   socket.on("host:rage", (ack?: (result: unknown) => void) => {
     const session = findSession(socket.data.code as string);
     if (!session || socket.data.role !== "host" || session.host_token !== socket.data.hostToken) {
@@ -542,9 +654,134 @@ io.on("connection", (socket) => {
 
 app.get("/api/twitch/config", (_req, res) => {
   res.json({
-    clientId: process.env.TWITCH_CLIENT_ID || process.env.VITE_TWITCH_CLIENT_ID || "",
-    configured: Boolean(process.env.TWITCH_CLIENT_ID || process.env.VITE_TWITCH_CLIENT_ID),
+    configured: Boolean(twitchConfig().clientId && twitchConfig().clientSecret),
   });
+});
+
+app.get("/api/twitch/login", (req, res) => {
+  const { clientId, clientSecret } = twitchConfig();
+  if (!clientId || !clientSecret) {
+    res.status(503).json({ error: "OAuth Twitch n'est pas configuré sur le serveur." });
+    return;
+  }
+  const role: TwitchSessionRole = req.query.role === "streamer" ? "streamer" : "viewer";
+  const state = crypto.randomUUID();
+  twitchOAuthStates.set(state, { role, returnTo: safeReturnTo(req.query.returnTo), createdAt: Date.now() });
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: twitchRedirectUri(req),
+    response_type: "code",
+    scope: "user:read:email user:read:chat",
+    state,
+  });
+  res.redirect(`https://id.twitch.tv/oauth2/authorize?${params.toString()}`);
+});
+
+app.get("/api/twitch/callback", async (req, res) => {
+  const state = typeof req.query.state === "string" ? twitchOAuthStates.get(req.query.state) : undefined;
+  if (!state || Date.now() - state.createdAt > 10 * 60 * 1000) {
+    res.status(400).send("La session OAuth Twitch a expiré. Recommence la connexion.");
+    return;
+  }
+  twitchOAuthStates.delete(req.query.state as string);
+  const { clientId, clientSecret } = twitchConfig();
+  const code = typeof req.query.code === "string" ? req.query.code : "";
+  if (!code || !clientId || !clientSecret) {
+    res.status(400).send("Réponse OAuth Twitch invalide.");
+    return;
+  }
+  try {
+    const tokenResponse = await fetch("https://id.twitch.tv/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code, grant_type: "authorization_code", redirect_uri: twitchRedirectUri(req) }),
+    });
+    if (!tokenResponse.ok) throw new Error(`Token exchange failed (${tokenResponse.status})`);
+    const token = await tokenResponse.json() as { access_token?: string; expires_in?: number };
+    if (!token.access_token) throw new Error("Twitch n'a pas fourni de token.");
+
+    const userResponse = await fetch("https://api.twitch.tv/helix/users", {
+      headers: { Authorization: `Bearer ${token.access_token}`, "Client-Id": clientId },
+    });
+    if (!userResponse.ok) throw new Error(`User lookup failed (${userResponse.status})`);
+    const payload = await userResponse.json() as { data?: Array<{ id: string; login: string; display_name: string; profile_image_url: string }> };
+    const twitchUser = payload.data?.[0];
+    if (!twitchUser) throw new Error("Profil Twitch introuvable.");
+
+    const sessionId = crypto.randomUUID();
+    twitchAuthSessions.set(sessionId, {
+      accessToken: token.access_token,
+      expiresAt: Date.now() + Math.max(60, token.expires_in ?? 3600) * 1000,
+      user: { id: twitchUser.id, login: twitchUser.login, displayName: twitchUser.display_name, avatar: twitchUser.profile_image_url, isStreamer: state.role === "streamer", role: state.role === "streamer" ? "streamer" : "viewer" },
+    });
+    setCookie(res, `crowdraid_twitch_session_${state.role}`, sessionId, 60 * 60);
+    res.redirect(state.returnTo);
+  } catch (error) {
+    console.error("Twitch OAuth callback failed:", error);
+    res.status(502).send("La connexion Twitch a échoué. Vérifie la configuration OAuth et réessaie.");
+  }
+});
+
+app.get("/api/twitch/me", (req, res) => {
+  const role: TwitchSessionRole = req.query.role === "streamer" ? "streamer" : "viewer";
+  const session = currentTwitchSession(req, role);
+  if (!session) {
+    res.status(401).json({ error: "Aucune session Twitch active." });
+    return;
+  }
+  res.json({ user: session.user });
+});
+
+app.post("/api/twitch/logout", (req, res) => {
+  const role: TwitchSessionRole = req.query.role === "streamer" ? "streamer" : "viewer";
+  const sessionId = parseCookies(req.headers.cookie)[`crowdraid_twitch_session_${role}`];
+  if (sessionId) twitchAuthSessions.delete(sessionId);
+  setCookie(res, `crowdraid_twitch_session_${role}`, "", 0);
+  res.status(204).end();
+});
+
+app.post("/api/twitch/eventsub", async (req, res) => {
+  const typedRequest = req as RequestWithRawBody;
+  if (!isValidTwitchSignature(typedRequest)) {
+    res.status(403).send("Signature Twitch invalide.");
+    return;
+  }
+  const messageType = req.header("Twitch-Eventsub-Message-Type");
+  if (messageType === "webhook_callback_verification") {
+    res.type("text/plain").send((req.body as { challenge?: string }).challenge ?? "");
+    return;
+  }
+  if (messageType === "revocation") {
+    console.warn("Twitch EventSub subscription revoked:", req.body);
+    res.status(204).end();
+    return;
+  }
+  const event = (req.body as { event?: { broadcaster_user_id?: string; chatter_user_id?: string; chatter_user_name?: string; message?: { text?: string } } }).event;
+  if (messageType === "notification" && event?.message?.text?.trim().toLowerCase() === "!attaque") {
+    const code = event.broadcaster_user_id ? twitchBroadcasterSessions.get(event.broadcaster_user_id) : undefined;
+    if (code && event.chatter_user_id && event.chatter_user_name) {
+      const now = Date.now();
+      const cooldownKey = `${code}:${event.chatter_user_id}`;
+      if (now - (twitchChatLastAttack.get(cooldownKey) ?? 0) >= 800) {
+        twitchChatLastAttack.set(cooldownKey, now);
+        const session = findSession(code);
+        if (session?.status === "live" && session.game_id === "boss") {
+          const playerId = `chat:${event.chatter_user_id}`;
+          upsertPlayer(playerId, code, event.chatter_user_name);
+          const player = getPlayer(code, playerId);
+          if (player) {
+            const damage = session.rage_until > now ? 20 : 10;
+            updatePlayerScore(code, playerId, player.score + damage, now);
+            const nextHp = Math.max(0, session.boss_hp - damage);
+            updateSession(code, { boss_hp: nextHp, status: nextHp === 0 ? "ended" : "live", last_event: nextHp === 0 ? "Victoire ! La communauté a vaincu le boss." : `${event.chatter_user_name} attaque depuis le chat !` });
+            const nextSession = findSession(code);
+            if (nextSession) publish(nextSession);
+          }
+        }
+      }
+    }
+  }
+  res.status(204).end();
 });
 
 const distPath = join(process.cwd(), "dist");
