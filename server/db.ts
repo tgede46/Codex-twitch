@@ -137,5 +137,67 @@ export function listSessions(): SessionRow[] {
   return db.prepare("SELECT * FROM sessions ORDER BY created_at DESC").all() as unknown as SessionRow[];
 }
 
+export function getHostSessionsHistory(hostToken?: string) {
+  let sessions: SessionRow[];
+  if (hostToken) {
+    sessions = db.prepare("SELECT * FROM sessions WHERE host_token = ? ORDER BY created_at DESC LIMIT 30").all(hostToken) as unknown as SessionRow[];
+  } else {
+    sessions = db.prepare("SELECT * FROM sessions ORDER BY created_at DESC LIMIT 30").all() as unknown as SessionRow[];
+  }
+  return sessions.map((session) => {
+    const players = getPlayers(session.code);
+    const playerCount = players.length;
+    const totalScore = players.reduce((sum, p) => sum + (p.score || 0), 0);
+    const top3 = players.slice(0, 3).map((p) => ({ nickname: p.nickname, score: p.score }));
+    return {
+      code: session.code,
+      gameId: session.game_id,
+      createdAt: session.created_at,
+      endedAt: session.ended_at,
+      status: session.status,
+      durationMinutes: session.duration_minutes,
+      playerCount,
+      totalScore,
+      top3,
+    };
+  });
+}
+
+export function getViewerSessionsHistory(playerIds: string[]) {
+  if (!playerIds || playerIds.length === 0) return [];
+  const placeholders = playerIds.map(() => "?").join(",");
+  const rows = db.prepare(
+    `SELECT p.id as player_id, p.nickname, p.score, p.session_code, s.game_id, s.status, s.created_at
+     FROM players p
+     JOIN sessions s ON p.session_code = s.code
+     WHERE p.id IN (${placeholders})
+     ORDER BY s.created_at DESC LIMIT 50`
+  ).all(...(playerIds as SQLInputValue[])) as Array<{
+    player_id: string;
+    nickname: string;
+    score: number;
+    session_code: string;
+    game_id: string;
+    status: string;
+    created_at: number;
+  }>;
+
+  return rows.map((row) => {
+    const sessionPlayers = getPlayers(row.session_code);
+    const rank = sessionPlayers.findIndex((p) => p.id === row.player_id) + 1;
+    return {
+      sessionCode: row.session_code,
+      gameId: row.game_id,
+      date: row.created_at,
+      nickname: row.nickname,
+      score: row.score,
+      rank: rank > 0 ? rank : 1,
+      totalPlayers: sessionPlayers.length,
+      status: row.status,
+    };
+  });
+}
+
 // Initialise le schéma à l'import du module.
 initSchema();
+

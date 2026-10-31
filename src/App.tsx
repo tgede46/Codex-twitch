@@ -4,13 +4,13 @@ import { io, type Socket } from "socket.io-client";
 import { QRCodeSVG } from "qrcode.react";
 import { Toaster, toast } from "sonner";
 import {
-  ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Brain, Check, ChevronDown,
-  Circle, CircleHelp, Copy, Crown, ExternalLink, Gamepad2, Heart, Link2, LockKeyhole,
+  ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Brain, Calendar, Check, ChevronDown,
+  Circle, CircleHelp, Clock, Copy, Crown, ExternalLink, Gamepad2, Heart, History, Link2, LockKeyhole,
   MonitorPlay, MoreHorizontal, PersonStanding, Play, Radio, RotateCw, Shield, Sparkles,
-  Swords, Trophy, Users, Zap,
+  Swords, Trophy, Users, X, Zap,
 } from "lucide-react";
 import { Arena } from "./Arena";
-import { GAMES, type Ack, type GameId, type SessionState } from "./types";
+import { GAMES, type Ack, type GameId, type SessionState, type HostSessionHistory, type ViewerSessionHistory } from "./types";
 
 type ServerAck = Ack<{ code?: string; hostToken?: string; playerId?: string; rank?: number; state?: SessionState; damage?: number; points?: number; correct?: boolean }>;
 const socket = io(import.meta.env.DEV ? `${window.location.protocol}//${window.location.hostname}:3001` : undefined);
@@ -123,10 +123,182 @@ function Topbar({ state, code }: { state: SessionState | null; code: string }) {
   return <header className="app-topbar"><Brand compact /><div className="topbar-center"><span className="topbar-game-icon"><Gamepad2 size={15} /></span><span>{GAMES.find((game) => game.id === state?.gameId)?.name ?? "Jeux CrowdRaid"}</span><ChevronDown size={14} /></div><div className="topbar-right"><StatusPill state={state} /><span className="topbar-divider" /><span className="session-code-label">SESSION <strong>{code}</strong></span><button className="icon-button help-button" aria-label="Aide" title="Aide"><CircleHelp size={18} /></button><div className="user-avatar" aria-label="Profil streamer">S</div></div></header>;
 }
 
+function formatDate(timestamp: number) {
+  if (!timestamp) return "—";
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(timestamp));
+  } catch {
+    return "Date inconnue";
+  }
+}
+
+function HostHistoryView({ socket, hostToken, onBack }: { socket: Socket; hostToken: string; onBack: () => void }) {
+  const [history, setHistory] = useState<HostSessionHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    socket.emit("history:host", { hostToken }, (res: { ok: boolean; history?: HostSessionHistory[] }) => {
+      setLoading(false);
+      if (res?.ok && res.history) setHistory(res.history);
+    });
+  }, [socket, hostToken]);
+
+  return (
+    <div className="history-view">
+      <div className="history-heading">
+        <div>
+          <h2>Historique de vos parties organisées</h2>
+          <p>Consultez les dates, scores collectifs et podiums de tous vos raids passés.</p>
+        </div>
+        <button className="button button-white" onClick={onBack}>
+          <ArrowLeft size={16} /> Retour à la session
+        </button>
+      </div>
+
+      {loading && <div className="history-loading"><RotateCw size={20} className="spin" /> Chargement de l’historique…</div>}
+
+      {!loading && history.length === 0 && (
+        <div className="empty-history-card">
+          <History size={32} />
+          <strong>Aucune session terminée pour le moment</strong>
+          <span>Vos futures parties apparaîtront automatiquement ici avec leurs classements et podiums.</span>
+        </div>
+      )}
+
+      <div className="history-grid">
+        {history.map((sess) => {
+          const game = GAMES.find((g) => g.id === sess.gameId);
+          return (
+            <div key={sess.code} className="history-session-card">
+              <div className="history-card-header">
+                <span className="history-game-badge">
+                  <GameIcon gameId={sess.gameId} size={15} />
+                  <strong>{game?.name ?? "Mini-Jeu"}</strong>
+                  <span className="history-session-code">#{sess.code}</span>
+                </span>
+                <span className="history-date">
+                  <Calendar size={13} /> {formatDate(sess.createdAt)}
+                </span>
+              </div>
+              <div className="history-metrics">
+                <div>
+                  <small>VIEWERS</small>
+                  <strong>{sess.playerCount}</strong>
+                </div>
+                <div>
+                  <small>SCORE RAID</small>
+                  <strong>{sess.totalScore.toLocaleString("fr-FR")} pts</strong>
+                </div>
+                <div>
+                  <small>DURÉE</small>
+                  <strong>{sess.durationMinutes} min</strong>
+                </div>
+              </div>
+              <div className="history-podium">
+                <small className="podium-title"><Trophy size={13} /> PODIUM FINAL</small>
+                {sess.top3.length === 0 && <span className="no-players-note">Aucun joueur enregistré</span>}
+                {sess.top3.map((p, idx) => (
+                  <div key={p.nickname} className="podium-row">
+                    <span className="podium-medal">{idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</span>
+                    <span className="podium-nickname">{p.nickname}</span>
+                    <strong className="podium-score">{p.score} pts</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ViewerHistoryDrawer({ socket, onClose }: { socket: Socket; onClose: () => void }) {
+  const [history, setHistory] = useState<ViewerSessionHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const playerIds: string[] = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith("crowdraid:player:")) {
+          const item = JSON.parse(localStorage.getItem(key) || "{}");
+          if (item?.id && !playerIds.includes(item.id)) playerIds.push(item.id);
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    socket.emit("history:viewer", { playerIds }, (res: { ok: boolean; history?: ViewerSessionHistory[] }) => {
+      setLoading(false);
+      if (res?.ok && res.history) setHistory(res.history);
+    });
+  }, [socket]);
+
+  return (
+    <div className="viewer-history-overlay" onClick={onClose}>
+      <div className="viewer-history-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <span className="join-overline">MES STATS</span>
+            <h2>Historique de tes parties</h2>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Fermer"><X size={19} /></button>
+        </div>
+
+        {loading && <div className="history-loading"><RotateCw size={18} className="spin" /> Chargement…</div>}
+
+        {!loading && history.length === 0 && (
+          <div className="empty-history-card">
+            <Trophy size={28} />
+            <strong>Aucune partie enregistrée</strong>
+            <span>Rejoins une partie pour que tes scores et rangs s'enregistrent sur cet appareil.</span>
+          </div>
+        )}
+
+        <div className="viewer-history-list">
+          {history.map((item, idx) => {
+            const game = GAMES.find((g) => g.id === item.gameId);
+            return (
+              <div key={`${item.sessionCode}-${idx}`} className="viewer-history-item">
+                <div className="viewer-history-item-top">
+                  <span className="history-game-name">
+                    <GameIcon gameId={item.gameId} size={15} />
+                    <strong>{game?.name}</strong>
+                  </span>
+                  <span className="viewer-history-date"><Clock size={12} /> {formatDate(item.date)}</span>
+                </div>
+                <div className="viewer-history-item-bottom">
+                  <span>Pseudo : <strong>{item.nickname}</strong></span>
+                  <span className="viewer-history-rank">
+                    Rang <strong>#{item.rank}</strong> / {item.totalPlayers}
+                  </span>
+                  <strong className="viewer-history-pts">+{item.score} pts</strong>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <button className="button button-primary button-block" onClick={onClose} style={{ marginTop: 14 }}>
+          Retour à la manette
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function HostPage({ socket }: { socket: Socket }) {
   const { code = "" } = useParams();
   const [state, setState] = useState<SessionState | null>(null);
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<"live" | "history">("live");
   const hostToken = localStorage.getItem(`crowdraid:host:${code}`) ?? "";
   const viewerUrl = `${window.location.origin}/play/${code}`;
   const overlayUrl = `${window.location.origin}/overlay/${code}`;
@@ -170,36 +342,43 @@ function HostPage({ socket }: { socket: Socket }) {
     <Topbar state={state} code={code} />
     <aside className="app-sidebar">
       <div className="sidebar-group-label">ESPACE STREAMER</div>
-      <button className="sidebar-item sidebar-item-active"><MonitorPlay size={17} /><span>Ma session</span><i /></button>
+      <button className={`sidebar-item ${activeTab === "live" ? "sidebar-item-active" : ""}`} onClick={() => setActiveTab("live")}><MonitorPlay size={17} /><span>Ma session</span>{activeTab === "live" && <i />}</button>
+      <button className={`sidebar-item ${activeTab === "history" ? "sidebar-item-active" : ""}`} onClick={() => setActiveTab("history")}><History size={17} /><span>Historique des parties</span>{activeTab === "history" && <i />}</button>
       <button className="sidebar-item" onClick={() => window.open(overlayTransparentUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={16} /><span>Overlay OBS (Transparent)</span><ArrowUpRight size={14} className="sidebar-trailing" /></button>
       <div className="sidebar-bottom"><div className="sidebar-help"><Shield size={17} /><span><strong>Session privée</strong><small>Seul toi contrôles la partie.</small></span></div><div className="sidebar-user"><span className="user-avatar user-avatar-large">S</span><span><strong>Streamer</strong><small>Compte démo</small></span><MoreHorizontal size={17} /></div></div>
     </aside>
     <main className="dashboard-main">
-      <div className="dashboard-heading"><div className="breadcrumb"><span>Dashboard</span><span>/</span><strong>{state?.status === "waiting" ? "Préparation" : "Session en cours"}</strong></div><div className="heading-title-row"><div><h1>{state?.status === "waiting" ? "Ta partie est prête" : "Salut, streamer"} <span className="wave-hand">✦</span></h1><p>{state?.status === "waiting" ? "Partage les infos de la session, choisis ton rôle, puis lance la partie." : "Ta communauté est dans l’arène. Anime le live ou attaque avec le chat."}</p></div><div className="heading-buttons"><button className="button button-white" onClick={() => copyLink(overlayTransparentUrl, "Lien OBS (fond transparent) copié !")} title="Copier l'URL transparente pour OBS"><MonitorPlay size={16} /> Copier URL OBS</button><button className="button button-white" onClick={() => window.open(overlayUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={16} /> Tester l’overlay</button><button className="button button-primary" onClick={() => act("host:end")} disabled={state?.status === "ended" || state?.status === "waiting"}><span className="button-live-dot" /> Terminer la partie</button></div></div></div>
-      <div className="stats-grid">
-        <div className="stat-card"><div className="stat-top"><span>JOUEURS EN LIGNE</span><span className="stat-icon stat-icon-purple"><Users size={16} /></span></div><div className="stat-value">{state?.playerCount ?? 0}<small> viewers</small></div><div className="stat-foot"><span className="stat-live"><i /> Live maintenant</span><span>dans cette session</span></div></div>
-        <div className="stat-card"><div className="stat-top"><span>SCORE CUMULÉ</span><span className="stat-icon stat-icon-peach"><Zap size={16} /></span></div><div className="stat-value">{(state?.totalDamage ?? 0).toLocaleString("fr-FR")}<small> pts</small></div><div className="stat-foot"><span className="stat-foot-positive"><ArrowUpRight size={13} /> Collectif</span><span>depuis le début</span></div></div>
-        <div className="stat-card"><div className="stat-top"><span>TEMPS RESTANT</span><span className="stat-icon stat-icon-mint"><Heart size={16} /></span></div><div className="stat-value">{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "5:00"}<small> / {state?.durationMinutes ?? 5} min</small></div><div className="stat-progress"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><div className="stat-foot"><span>{GAMES.find((game) => game.id === state?.gameId)?.name}</span><span>{state?.status === "live" ? "En cours" : "Durée choisie"}</span></div></div>
-      </div>
-      {state?.status === "waiting" && <section className="game-picker surface-card"><div className="surface-heading"><div><h2>Choisis ton jeu</h2><p>Cinq jeux courts, pensés pour jouer ensemble pendant le live.</p></div><label className="duration-select">DURÉE <select value={state.durationMinutes} onChange={(event) => configure(state.gameId, Number(event.target.value))}>{[3,4,5,6,7,8,9,10].map((min) => <option key={min} value={min}>{min} min</option>)}</select></label></div><div className="game-picker-grid">{GAMES.map((game) => <button key={game.id} className={`game-choice ${state.gameId === game.id ? "game-choice-active" : ""}`} onClick={() => configure(game.id)}><span className="game-choice-icon"><GameIcon gameId={game.id} size={18} /></span><span className="game-choice-meta"><small>{game.genre}</small><strong>{game.name}</strong><em>{game.description}</em></span>{state.gameId === game.id && <Check size={16} className="game-choice-check" />}</button>)}</div></section>}
-      <section className="participation-strip"><span className={`participation-icon ${state?.streamerParticipates ? "participation-active" : ""}`}><Gamepad2 size={18} /></span><div className="participation-copy"><strong>{state?.streamerParticipates ? "Tu joues avec le chat" : "Tu animes le live"}</strong><span>{state?.status === "waiting" ? "Choisis si tu veux jouer avec les viewers." : state?.streamerParticipates && state.gameId === "boss" ? "Ta place est dans le classement. Attaque depuis le dashboard." : state?.streamerParticipates ? "Les viewers jouent depuis leur manette pendant que tu animes le live." : "Les viewers jouent pendant que tu commentes."}</span></div>{state?.status === "waiting" ? <button className={`button ${state.streamerParticipates ? "button-white" : "button-primary"}`} onClick={() => chooseParticipation(!state.streamerParticipates)}><Swords size={15} />{state.streamerParticipates ? "Je préfère animer" : "Je participe aussi"}</button> : state?.status === "live" && state.streamerParticipates && state.gameId === "boss" ? <button className="button button-primary" onClick={() => act("host:attack")}><Swords size={15} /> Attaquer le boss</button> : <span className="host-role-locked"><Shield size={14} /> {state?.status === "ended" ? "Partie terminée" : "Rôle choisi pour cette partie"}</span>}</section>
-      <div className="dashboard-content-grid">
-        <section className="surface-card stream-card">
-          <div className="surface-heading"><div><h2>Ton arène</h2><p>Aperçu de ce que ton audience voit sur le stream.</p></div><div className="live-caption"><i /> {state?.status === "live" ? "LIVE" : state?.status === "ended" ? "FINI" : "PRÊT"}</div></div>
-          <div className="arena-frame"><div className="arena-hud"><div className="boss-hud"><span className="boss-name"><span className="boss-crown"><GameIcon gameId={state?.gameId} size={14} /></span> {GAMES.find((game) => game.id === state?.gameId)?.name ?? "JEU"}</span><div className="boss-health-row"><div className="boss-health"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><span>{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</span></div></div><div className="arena-players"><Users size={14} /> {state?.playerCount ?? 0} joueurs</div></div><GameStage state={state} /><div className="arena-bottom-hud"><div className="arena-event"><span className="event-spark"><Sparkles size={14} /></span><span>{state?.lastEvent || "Les viewers attendent le lancement…"}</span></div><div className="arena-hud-score"><Trophy size={13} /> TOP 5</div></div></div>
-          <div className="arena-footer"><div className="overlay-status"><span className="overlay-status-icon"><MonitorPlay size={15} /></span><span><strong>Overlay OBS</strong><small>Source navigateur · 1920 × 1080 (Transparent)</small></span><span className="connection-check"><Check size={13} /></span></div><button className="button button-outline" onClick={() => window.open(overlayTransparentUrl, "_blank", "noopener,noreferrer")}>Ouvrir l’overlay <ArrowUpRight size={15} /></button></div>
-        </section>
-        <section className="surface-card leaderboard-card">
-          <div className="surface-heading leaderboard-heading"><div><h2>Meilleurs joueurs</h2><p>Les héros du live, aujourd’hui.</p></div><button className="icon-button" aria-label="Plus d’options"><MoreHorizontal size={19} /></button></div>
-          <div className="leaderboard-list">
-            {(state?.topPlayers ?? []).map((player, index) => <div className={`leaderboard-row rank-${index + 1}`} key={player.id}><span className="rank-medal">{index === 0 ? <Crown size={14} fill="currentColor" /> : `0${index + 1}`}</span><span className={`leader-avatar avatar-color-${index % 5}`}>{player.nickname.slice(0, 1).toUpperCase()}</span><span className="leader-name">{player.nickname}<small>{index === 0 ? "Top damage" : "Raid member"}</small></span><span className="leader-score">{player.score}<small> pts</small></span></div>)}
-            {(!state || state.topPlayers.length === 0) && <div className="empty-leaderboard"><span className="empty-trophy"><Trophy size={20} /></span><strong>Le classement se prépare</strong><span>Dès la première attaque, les joueurs apparaîtront ici.</span></div>}
+      {activeTab === "history" ? (
+        <HostHistoryView socket={socket} hostToken={hostToken} onBack={() => setActiveTab("live")} />
+      ) : (
+        <>
+          <div className="dashboard-heading"><div className="breadcrumb"><span>Dashboard</span><span>/</span><strong>{state?.status === "waiting" ? "Préparation" : "Session en cours"}</strong></div><div className="heading-title-row"><div><h1>{state?.status === "waiting" ? "Ta partie est prête" : "Salut, streamer"} <span className="wave-hand">✦</span></h1><p>{state?.status === "waiting" ? "Partage les infos de la session, choisis ton rôle, puis lance la partie." : "Ta communauté est dans l’arène. Anime le live ou attaque avec le chat."}</p></div><div className="heading-buttons"><button className="button button-white" onClick={() => copyLink(overlayTransparentUrl, "Lien OBS (fond transparent) copié !")} title="Copier l'URL transparente pour OBS"><MonitorPlay size={16} /> Copier URL OBS</button><button className="button button-white" onClick={() => window.open(overlayUrl, "_blank", "noopener,noreferrer")}><ExternalLink size={16} /> Tester l’overlay</button><button className="button button-primary" onClick={() => act("host:end")} disabled={state?.status === "ended" || state?.status === "waiting"}><span className="button-live-dot" /> Terminer la partie</button></div></div></div>
+          <div className="stats-grid">
+            <div className="stat-card"><div className="stat-top"><span>JOUEURS EN LIGNE</span><span className="stat-icon stat-icon-purple"><Users size={16} /></span></div><div className="stat-value">{state?.playerCount ?? 0}<small> viewers</small></div><div className="stat-foot"><span className="stat-live"><i /> Live maintenant</span><span>dans cette session</span></div></div>
+            <div className="stat-card"><div className="stat-top"><span>SCORE CUMULÉ</span><span className="stat-icon stat-icon-peach"><Zap size={16} /></span></div><div className="stat-value">{(state?.totalDamage ?? 0).toLocaleString("fr-FR")}<small> pts</small></div><div className="stat-foot"><span className="stat-foot-positive"><ArrowUpRight size={13} /> Collectif</span><span>depuis le début</span></div></div>
+            <div className="stat-card"><div className="stat-top"><span>TEMPS RESTANT</span><span className="stat-icon stat-icon-mint"><Heart size={16} /></span></div><div className="stat-value">{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "5:00"}<small> / {state?.durationMinutes ?? 5} min</small></div><div className="stat-progress"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><div className="stat-foot"><span>{GAMES.find((game) => game.id === state?.gameId)?.name}</span><span>{state?.status === "live" ? "En cours" : "Durée choisie"}</span></div></div>
           </div>
-          <button className="leaderboard-link" onClick={() => copyLink(viewerUrl)}>Partager le lien de la partie <ArrowRight size={15} /></button>
-        </section>
-      </div>
-      <div className="join-strip"><span className="dashboard-qr"><QRCodeSVG value={viewerUrl} size={54} level="M" bgColor="#ffffff" fgColor="#392274" /></span><div className="join-strip-copy"><strong>Fais entrer ton chat dans la partie</strong><span>Scanne le QR code ou copie le lien dans le chat Twitch.</span></div><div className="join-link-chip"><Link2 size={14} /><span>{viewerUrl.replace(/^https?:\/\//, "")}</span><button aria-label="Copier le lien viewer" onClick={() => copyLink(viewerUrl)}>{copied ? <Check size={15} /> : <Copy size={15} />}</button></div>{state?.gameId === "boss" && <button className={`button button-rage ${state?.rageActive ? "rage-pulsing" : ""}`} onClick={() => act("host:rage")} disabled={state?.status !== "live" || state.rageActive}><Zap size={15} fill="currentColor" /> {state?.rageActive ? "RAGE ACTIVE (×2 DMG)" : "Rage du boss (30s)"}</button>}</div>
-      {state?.status === "waiting" && <div className="launch-row"><span><span className="launch-indicator" /> {GAMES.find((game) => game.id === state.gameId)?.name} · {state.durationMinutes} minutes · partage le lien puis lance.</span><button className="button button-primary" onClick={() => act("host:start")}><Play size={15} fill="currentColor" /> Lancer la partie</button></div>}
+          {state?.status === "waiting" && <section className="game-picker surface-card"><div className="surface-heading"><div><h2>Choisis ton jeu</h2><p>Cinq jeux courts, pensés pour jouer ensemble pendant le live.</p></div><label className="duration-select">DURÉE <select value={state.durationMinutes} onChange={(event) => configure(state.gameId, Number(event.target.value))}>{[3,4,5,6,7,8,9,10].map((min) => <option key={min} value={min}>{min} min</option>)}</select></label></div><div className="game-picker-grid">{GAMES.map((game) => <button key={game.id} className={`game-choice ${state.gameId === game.id ? "game-choice-active" : ""}`} onClick={() => configure(game.id)}><span className="game-choice-icon"><GameIcon gameId={game.id} size={18} /></span><span className="game-choice-meta"><small>{game.genre}</small><strong>{game.name}</strong><em>{game.description}</em></span>{state.gameId === game.id && <Check size={16} className="game-choice-check" />}</button>)}</div></section>}
+          <section className="participation-strip"><span className={`participation-icon ${state?.streamerParticipates ? "participation-active" : ""}`}><Gamepad2 size={18} /></span><div className="participation-copy"><strong>{state?.streamerParticipates ? "Tu joues avec le chat" : "Tu animes le live"}</strong><span>{state?.status === "waiting" ? "Choisis si tu veux jouer avec les viewers." : state?.streamerParticipates && state.gameId === "boss" ? "Ta place est dans le classement. Attaque depuis le dashboard." : state?.streamerParticipates ? "Les viewers jouent depuis leur manette pendant que tu animes le live." : "Les viewers jouent pendant que tu commentes."}</span></div>{state?.status === "waiting" ? <button className={`button ${state.streamerParticipates ? "button-white" : "button-primary"}`} onClick={() => chooseParticipation(!state.streamerParticipates)}><Swords size={15} />{state.streamerParticipates ? "Je préfère animer" : "Je participe aussi"}</button> : state?.status === "live" && state.streamerParticipates && state.gameId === "boss" ? <button className="button button-primary" onClick={() => act("host:attack")}><Swords size={15} /> Attaquer le boss</button> : <span className="host-role-locked"><Shield size={14} /> {state?.status === "ended" ? "Partie terminée" : "Rôle choisi pour cette partie"}</span>}</section>
+          <div className="dashboard-content-grid">
+            <section className="surface-card stream-card">
+              <div className="surface-heading"><div><h2>Ton arène</h2><p>Aperçu de ce que ton audience voit sur le stream.</p></div><div className="live-caption"><i /> {state?.status === "live" ? "LIVE" : state?.status === "ended" ? "FINI" : "PRÊT"}</div></div>
+              <div className="arena-frame"><div className="arena-hud"><div className="boss-hud"><span className="boss-name"><span className="boss-crown"><GameIcon gameId={state?.gameId} size={14} /></span> {GAMES.find((game) => game.id === state?.gameId)?.name ?? "JEU"}</span><div className="boss-health-row"><div className="boss-health"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><span>{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</span></div></div><div className="arena-players"><Users size={14} /> {state?.playerCount ?? 0} joueurs</div></div><GameStage state={state} /><div className="arena-bottom-hud"><div className="arena-event"><span className="event-spark"><Sparkles size={14} /></span><span>{state?.lastEvent || "Les viewers attendent le lancement…"}</span></div><div className="arena-hud-score"><Trophy size={13} /> TOP 5</div></div></div>
+              <div className="arena-footer"><div className="overlay-status"><span className="overlay-status-icon"><MonitorPlay size={15} /></span><span><strong>Overlay OBS</strong><small>Source navigateur · 1920 × 1080 (Transparent)</small></span><span className="connection-check"><Check size={13} /></span></div><button className="button button-outline" onClick={() => window.open(overlayTransparentUrl, "_blank", "noopener,noreferrer")}>Ouvrir l’overlay <ArrowUpRight size={15} /></button></div>
+            </section>
+            <section className="surface-card leaderboard-card">
+              <div className="surface-heading leaderboard-heading"><div><h2>Meilleurs joueurs</h2><p>Les héros du live, aujourd’hui.</p></div><button className="icon-button" aria-label="Plus d’options"><MoreHorizontal size={19} /></button></div>
+              <div className="leaderboard-list">
+                {(state?.topPlayers ?? []).map((player, index) => <div className={`leaderboard-row rank-${index + 1}`} key={player.id}><span className="rank-medal">{index === 0 ? <Crown size={14} fill="currentColor" /> : `0${index + 1}`}</span><span className={`leader-avatar avatar-color-${index % 5}`}>{player.nickname.slice(0, 1).toUpperCase()}</span><span className="leader-name">{player.nickname}<small>{index === 0 ? "Top damage" : "Raid member"}</small></span><span className="leader-score">{player.score}<small> pts</small></span></div>)}
+                {(!state || state.topPlayers.length === 0) && <div className="empty-leaderboard"><span className="empty-trophy"><Trophy size={20} /></span><strong>Le classement se prépare</strong><span>Dès la première attaque, les joueurs apparaîtront ici.</span></div>}
+              </div>
+              <button className="leaderboard-link" onClick={() => copyLink(viewerUrl)}>Partager le lien de la partie <ArrowRight size={15} /></button>
+            </section>
+          </div>
+          <div className="join-strip"><span className="dashboard-qr"><QRCodeSVG value={viewerUrl} size={54} level="M" bgColor="#ffffff" fgColor="#392274" /></span><div className="join-strip-copy"><strong>Fais entrer ton chat dans la partie</strong><span>Scanne le QR code ou copie le lien dans le chat Twitch.</span></div><div className="join-link-chip"><Link2 size={14} /><span>{viewerUrl.replace(/^https?:\/\//, "")}</span><button aria-label="Copier le lien viewer" onClick={() => copyLink(viewerUrl)}>{copied ? <Check size={15} /> : <Copy size={15} />}</button></div>{state?.gameId === "boss" && <button className={`button button-rage ${state?.rageActive ? "rage-pulsing" : ""}`} onClick={() => act("host:rage")} disabled={state?.status !== "live" || state.rageActive}><Zap size={15} fill="currentColor" /> {state?.rageActive ? "RAGE ACTIVE (×2 DMG)" : "Rage du boss (30s)"}</button>}</div>
+          {state?.status === "waiting" && <div className="launch-row"><span><span className="launch-indicator" /> {GAMES.find((game) => game.id === state.gameId)?.name} · {state.durationMinutes} minutes · partage le lien puis lance.</span><button className="button button-primary" onClick={() => act("host:start")}><Play size={15} fill="currentColor" /> Lancer la partie</button></div>}
+        </>
+      )}
     </main>
   </div>;
 }
@@ -240,6 +419,7 @@ function ViewerPage({ socket }: { socket: Socket }) {
   const [playerId, setPlayerId] = useState("");
   const [myRank, setMyRank] = useState(0);
   const [joined, setJoined] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [state, setState] = useState<SessionState | null>(null);
   const [feedback, setFeedback] = useState("Prêt à attaquer ? Chaque coup aide l’équipe.");
   const [error, setError] = useState("");
@@ -369,7 +549,17 @@ function ViewerPage({ socket }: { socket: Socket }) {
     });
   };
 
-  return <main className="viewer-page"><header className="viewer-header"><Brand compact /><span className="viewer-connected"><i />{state?.status === "live" ? "Partie en direct" : state?.status === "ended" ? "Partie terminée" : "En attente du streamer"}</span></header>
+  return <main className="viewer-page">
+    {showHistory && <ViewerHistoryDrawer socket={socket} onClose={() => setShowHistory(false)} />}
+    <header className="viewer-header">
+      <Brand compact />
+      <div className="viewer-header-right">
+        <button className="viewer-history-btn" onClick={() => { triggerHaptic(25); setShowHistory(true); }} title="Voir mes parties passées">
+          <History size={14} /> <span>Historique</span>
+        </button>
+        <span className="viewer-connected"><i />{state?.status === "live" ? "En direct" : state?.status === "ended" ? "Terminée" : "En attente"}</span>
+      </div>
+    </header>
     {!joined ? <section className="join-screen"><div className="join-decoration decor-one" /><div className="join-decoration decor-two" /><div className="join-card"><div className="join-game-icon"><Swords size={23} /></div><span className="join-overline">TU ES INVITÉ·E À</span><h1>Le chat contre<br /><span>le boss.</span></h1><p>Rejoins la partie du streamer. Choisis ton pseudo et attaque avec tout le monde.</p><form onSubmit={joinGame}><label htmlFor="nickname">Ton pseudo</label><div className="name-input-wrap"><span>@</span><input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value.slice(0, 16))} placeholder="ex. Luma" maxLength={16} autoComplete="nickname" required /></div>{error && <div className="inline-error" role="alert">{error}</div>}<button className="button button-primary button-block" type="submit" disabled={!nickname.trim()}><Gamepad2 size={17} /> Rejoindre la partie <ArrowRight size={16} /></button></form><div className="join-safe-note"><LockKeyhole size={13} /> Pas de compte. Pas de téléchargement. Juste du jeu.</div></div></section>
     : <section className="controller-screen"><div className="controller-greeting"><div><span className="join-overline">SESSION {code}</span><h1>À toi de jouer, <span>{nickname}.</span></h1></div><span className="controller-player-count"><Users size={15} /> {state?.playerCount ?? 1} dans le raid</span></div><div className={`mobile-boss-card ${state?.rageActive ? "boss-raging" : ""}`}><div className="mobile-boss-top"><span className="mobile-boss-avatar"><GameIcon gameId={state?.gameId} size={21} /></span><div><small>JEU EN COURS</small><strong>{GAMES.find((game) => game.id === state?.gameId)?.name}</strong></div><span className="mobile-boss-state">{state ? `${Math.floor(state.remainingSeconds / 60)}:${String(state.remainingSeconds % 60).padStart(2, "0")}` : "—"}</span></div><div className="mobile-hp-row"><span>SCORE DE TON ÉQUIPE</span><b>{(state?.totalDamage ?? 0).toLocaleString("fr-FR")}<small> pts</small></b></div><div className="mobile-health"><i style={{ width: `${state ? state.remainingSeconds / (state.durationMinutes * 60) * 100 : 100}%` }} /></div><div className="boss-status-copy">{state?.lastEvent || "Ton équipe est prête."}</div></div>
       <div className="your-score-card"><span className="your-score-icon"><Zap size={17} /></span><span><small>TES DÉGÂTS</small><strong>{myScore} <em>pts</em></strong></span><span className="your-rank-pill">{myRank > 0 ? `#${myRank}` : "—"}</span></div>

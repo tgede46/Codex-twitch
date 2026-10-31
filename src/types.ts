@@ -30,3 +30,26 @@ export type SessionState = {
 export type Ack<T = Record<string, never>> =
   | ({ ok: true } & T)
   | { ok: false; error: string };
+
+export type HostSessionHistory = {
+  code: string;
+  gameId: GameId;
+  createdAt: number;
+  endedAt: number | null;
+  status: string;
+  durationMinutes: number;
+  playerCount: number;
+  totalScore: number;
+  top3: { nickname: string; score: number }[];
+};
+
+export type ViewerSessionHistory = {
+  sessionCode: string;
+  gameId: GameId;
+  date: number;
+  nickname: string;
+  score: number;
+  rank: number;
+  totalPlayers: number;
+  status: string;
+};

@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Server } from "socket.io";
 import { GAMES, type GameId, type SessionState } from "../src/types.ts";
-import { db, type SessionRow, type PlayerRow } from "./db.ts";
+import { db, type SessionRow, type PlayerRow, getHostSessionsHistory, getViewerSessionsHistory } from "./db.ts";
 import type { SQLInputValue } from "node:sqlite";
 
 // ----------------------------------------------------
@@ -182,6 +182,24 @@ io.on("connection", (socket) => {
     socket.data.hostToken = hostToken;
     ack?.({ ok: true, state: publicState(session) });
     publish(session);
+  });
+
+  socket.on("history:host", ({ hostToken }: { hostToken?: string } = {}, ack?: (result: unknown) => void) => {
+    try {
+      const history = getHostSessionsHistory(hostToken);
+      ack?.({ ok: true, history });
+    } catch (err: unknown) {
+      ack?.({ ok: false, error: err instanceof Error ? err.message : "Erreur historique" });
+    }
+  });
+
+  socket.on("history:viewer", ({ playerIds }: { playerIds?: string[] } = {}, ack?: (result: unknown) => void) => {
+    try {
+      const history = getViewerSessionsHistory(playerIds ?? []);
+      ack?.({ ok: true, history });
+    } catch (err: unknown) {
+      ack?.({ ok: false, error: err instanceof Error ? err.message : "Erreur historique" });
+    }
   });
 
   socket.on("overlay:join", ({ code }: { code: string }, ack?: (result: unknown) => void) => {
