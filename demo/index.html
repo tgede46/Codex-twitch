@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CrowdRaid — Interactive Streamer & Viewer Platform Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<!-- Lucide Icons Web -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+:root{
+  --bg:#0e0c15;--surface:#151221;--card:#1d182e;--card-border:#2e2646;
+  --accent:#9d7dea;--accent2:#b899ff;--accent-glow:rgba(157,125,234,0.35);
+  --twitch:#9146FF;--twitch-hover:#772ce8;
+  --green:#22c55e;--red:#ef4444;--yellow:#f59e0b;
+  --text:#f4f1fb;--muted:#8b839e;--border:#27203b;
+  --font:'Inter',system-ui,sans-serif;
+  --head:'Space Grotesk',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;display:flex;flex-direction:column}
+.tb{height:54px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(14,12,21,0.88);backdrop-filter:blur(10px);position:sticky;top:0;z-index:100}
+.logo{font-family:var(--head);font-size:1.15rem;font-weight:800;letter-spacing:-.02em;color:var(--text);display:flex;align-items:center;gap:8px}
+.logo-icon{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#6d28d9);display:flex;align-items:center;justify-content:center;color:#fff}
+.glow{color:var(--accent)}
+.progress-wrap{display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:.78rem;color:var(--muted)}
+.progress-bar{width:130px;height:5px;background:var(--border);border-radius:999px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#60a5fa);transition:width .35s ease}
+.sub-bar{background:rgba(21,18,33,0.95);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:flex-start;gap:14px;min-height:76px}
+.spk{background:linear-gradient(135deg,var(--twitch),#7c3aed);color:#fff;font-family:var(--mono);font-size:.7rem;font-weight:700;padding:4px 10px;border-radius:6px;letter-spacing:.05em;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(145,70,255,0.35)}
+#stxt{font-size:.95rem;line-height:1.55;color:var(--text);flex:1;font-weight:500}
+#slides{flex:1;position:relative;overflow:hidden;min-height:560px}
+.slide{position:absolute;inset:0;padding:28px;display:none;opacity:0;transform:translateY(18px);transition:opacity .35s cubic-bezier(.16,1,.3,1),transform .35s cubic-bezier(.16,1,.3,1);overflow-y:auto}
+.slide.active{display:block;opacity:1;transform:translateY(0)}
+.slide.exit{display:block;opacity:0;transform:translateY(-18px)}
+.sc{max-width:1100px;margin:0 auto}
+.stpi{display:flex;gap:6px;margin-bottom:10px}
+.sd{width:20px;height:3px;background:var(--border);border-radius:2px}
+.sd.d{background:var(--accent)}
+.sd.c{background:var(--twitch);box-shadow:0 0 8px var(--twitch)}
+.st{font-family:var(--head);font-size:2rem;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
+.ss{color:var(--muted);font-size:.95rem;margin-bottom:24px}
+.split{display:grid;grid-template-columns:1.2fr 1fr;gap:24px;align-items:start}
+.card{background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h3{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.statrow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:var(--surface);border-radius:10px;padding:12px;text-align:center}
+.stat .v{font-family:var(--head);font-size:1.5rem;font-weight:800;color:var(--accent2)}
+.stat .l{font-size:.68rem;color:var(--muted);margin-top:2px;text-transform:uppercase}
+.hpw{margin-top:8px}
+.hpl{display:flex;justify-content:space-between;font-size:.8rem;font-weight:600;margin-bottom:6px}
+.hpt{background:var(--surface);height:12px;border-radius:999px;overflow:hidden;border:1px solid var(--border)}
+.hpf{height:100%;background:linear-gradient(90deg,var(--green),#a3e635);border-radius:999px;transition:width .4s}
+.hpf.rage{background:linear-gradient(90deg,var(--red),var(--yellow))}
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.fcard{background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:22px}
+.fi{width:42px;height:42px;border-radius:12px;background:rgba(157,125,234,.16);display:flex;align-items:center;justify-content:center;color:var(--accent2);margin-bottom:14px}
+.fcard h4{font-size:1.05rem;font-weight:700;margin-bottom:6px}
+.fcard p{font-size:.85rem;color:var(--muted);line-height:1.55}
+.phonewrap{display:flex;justify-content:center}
+.phone{width:240px;background:#05040a;border:6px solid #28213f;border-radius:34px;padding:14px 10px 18px;box-shadow:0 24px 60px rgba(0,0,0,0.6),0 0 0 1px var(--border)}
+.phonebar{height:14px;display:flex;justify-content:center;align-items:center;margin-bottom:8px}
+.phonenotch{width:56px;height:9px;background:#28213f;border-radius:999px}
+.phonescreen{background:var(--card);border-radius:20px;padding:12px 10px;min-height:380px;display:flex;flex-direction:column}
+.abtn{background:linear-gradient(135deg,var(--accent),#6d28d9);color:#fff;border:none;border-radius:10px;padding:12px;font-family:var(--head);font-weight:700;font-size:1rem;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 16px var(--accent-glow);transition:all .2s}
+.abtn.rage{background:linear-gradient(135deg,var(--red),var(--yellow));box-shadow:0 4px 16px rgba(239,68,68,.4);animation:rpulse 1.5s infinite}
+@keyframes rpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+.btn-twitch{background:var(--twitch);color:#fff;border:none;border-radius:8px;padding:10px 14px;font-weight:700;font-size:.85rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 14px rgba(145,70,255,0.4);transition:all .2s}
+.btn-twitch:hover{background:var(--twitch-hover);transform:translateY(-1px)}
+.twitch-profile-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(145,70,255,.18);border:1px solid rgba(145,70,255,.45);border-radius:999px;padding:4px 12px 4px 5px}
+.twitch-profile-pill img{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--twitch)}
+.twitch-badge-chip{background:rgba(145,70,255,0.3);color:#d8b4fe;border:1px solid rgba(145,70,255,0.5);border-radius:4px;font-size:10px;font-weight:700;padding:2px 5px;text-transform:uppercase}
+.floatwrap{position:relative;height:55px;overflow:hidden;margin-bottom:6px}
+.fn{position:absolute;bottom:0;font-family:var(--head);font-size:1.15rem;font-weight:900;color:var(--yellow);animation:fup 1.6s cubic-bezier(.16,1,.3,1) forwards;pointer-events:none}
+.fn.crit{color:var(--red);font-size:1.35rem;filter:drop-shadow(0 0 6px var(--red))}
+@keyframes fup{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-55px) scale(1.3)}}
+.obsprev{background:#040308;border:2px dashed var(--accent);border-radius:14px;padding:14px;position:relative;overflow:hidden}
+.obslbl{font-family:var(--mono);font-size:.68rem;color:var(--accent2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.obstop{display:flex;align-items:center;gap:12px;background:rgba(29,24,46,.85);border-radius:10px;padding:10px 14px}
+.hero{text-align:center;padding:40px 0}
+.hero h1{font-family:var(--head);font-size:3.5rem;font-weight:900;letter-spacing:-.03em;margin-bottom:12px}
+.hero .tagline{font-size:1.25rem;color:var(--muted);max-width:680px;margin:0 auto 30px}
+.badgerow{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.badge{background:var(--card);border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:.8rem;color:var(--text);display:flex;align-items:center;gap:8px}
+.dot{width:7px;height:7px;border-radius:50%}
+.dp{background:var(--accent)}
+.dg{background:var(--green)}
+.dy{background:var(--yellow)}
+.games{display:grid;grid-template-columns:1fr;gap:6px}
+.gi{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between}
+.gi.sel{border-color:var(--accent);background:rgba(157,125,234,.1)}
+.gil{display:flex;align-items:center;gap:8px}
+.gic{width:28px;height:28px;border-radius:6px;background:rgba(157,125,234,.2);display:flex;align-items:center;justify-content:center;color:var(--accent2)}
+.gin{font-size:.8rem;font-weight:700}
+.gid{font-size:.65rem;color:var(--muted)}
+.gbg{font-size:.65rem;font-weight:700;color:var(--accent2);background:rgba(157,125,234,.2);padding:2px 8px;border-radius:4px}
+.qr{width:84px;height:84px;background:#fff;border-radius:8px;padding:6px;display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(7,1fr);gap:2px}
+.qc{background:#0e0c15;border-radius:1px}
+.qc.w{background:#fff}
+.urlbox{font-family:var(--mono);font-size:.85rem;background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;color:var(--accent2);display:flex;align-items:center;justify-content:space-between}
+.ht{width:100%;border-collapse:collapse;font-size:.8rem}
+.ht th{text-align:left;color:var(--muted);font-size:.68rem;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--border)}
+.ht td{padding:8px;border-bottom:1px solid rgba(46,38,70,.5)}
+.chip{display:inline-block;padding:2px 6px;border-radius:4px;font-size:.68rem;font-weight:700}
+.cr{background:rgba(239,68,68,.18);color:#fca5a5}
+.cq{background:rgba(96,165,250,.18);color:#93c5fd}
+.cp{background:rgba(34,197,94,.18);color:#86efac}
+.hi{background:var(--surface);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:.75rem}
+.hit{display:flex;justify-content:space-between;margin-bottom:3px}
+.hg{font-weight:700;color:var(--accent2);display:inline-flex;align-items:center;gap:4px}
+.hr{font-weight:700;color:var(--yellow)}
+.hd{color:var(--muted);font-size:.68rem}
+.hp-pts{font-family:var(--mono);font-weight:700;color:var(--green)}
+.navrow{height:58px;background:rgba(14,12,21,.95);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;bottom:0}
+.nb{background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:.85rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .18s}
+.nb:hover{border-color:var(--accent)}
+.nb.pri{background:var(--accent);color:#0e0c15;border-color:var(--accent);font-weight:700}
+.nb.on{background:var(--green);border-color:var(--green);color:#05040a}
+.rage-badge{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:800;color:var(--yellow);background:#2a220e;border-radius:4px;padding:2px 8px}
+.medal-svg{display:inline-block;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="tb">
+  <div class="logo">
+    <div class="logo-icon"><i data-lucide="swords" style="width:17px;height:17px"></i></div>
+    <span>Crowd<span class="glow">Raid</span></span>
+  </div>
+  <div class="progress-wrap">
+    <span id="scnt">1 / 8</span>
+    <div class="progress-bar"><div class="progress-fill" id="prog" style="width:12.5%"></div></div>
+  </div>
+</div>
+<div class="sub-bar">
+  <div class="spk" id="spk"><i data-lucide="mic" style="width:12px;height:12px"></i> NARRATOR</div>
+  <div id="stxt">Welcome to CrowdRaid — the interactive platform that turns your Twitch stream into a real-time boss raid. Viewers and streamers connect seamlessly with Twitch.</div>
+</div>
+<div id="slides">
+  <!-- 1 HERO -->
+  <div class="slide active" data-index="0">
+    <div class="sc hero">
+      <h1>Crowd<span class="glow">Raid</span></h1>
+      <p class="tagline">Turn your Twitch stream into an interactive real-time boss raid — streamers and viewers connect via Twitch to attack, rank, and conquer together.</p>
+      <div class="badgerow">
+        <div class="badge"><div class="dot dp"></div>Twitch OAuth & 1-Click</div>
+        <div class="badge"><div class="dot dg"></div>Zero Friction</div>
+        <div class="badge"><div class="dot dy"></div>Mobile Controller</div>
+        <div class="badge"><div class="dot dp"></div>OBS Transparent Overlay</div>
+      </div>
+    </div>
+  </div>
+  <!-- 2 HOW -->
+  <div class="slide" data-index="1">
+    <div class="sc"><div class="fc">
+      <h2 class="st">How does it work?</h2>
+      <p class="ss">3 steps. Zero friction. Total Twitch chat synergy.</p>
+      <div class="fgrid">
+        <div class="fcard">
+          <div class="fi"><i data-lucide="gamepad-2"></i></div>
+          <h4>1 — Streamer connects & opens lobby</h4>
+          <p>Login with your Twitch account. Pick Boss Raid or Speed Quiz. A Twitch-linked QR code and short URL are instantly ready.</p>
+        </div>
+        <div class="fcard">
+          <div class="fi"><i data-lucide="smartphone"></i></div>
+          <h4>2 — Viewers scan & join via Twitch</h4>
+          <p>Viewers scan on their phone or click the link in Twitch chat. 1-click Twitch connect syncs their avatar and subscriber badge.</p>
+        </div>
+        <div class="fcard">
+          <div class="fi"><i data-lucide="swords"></i></div>
+          <h4>3 — Chat attacks the boss live</h4>
+          <p>Every tap deals damage. Scores, podiums, and boss rage mode stream live directly on the transparent OBS overlay.</p>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <!-- 3 STREAMER DASHBOARD -->
+  <div class="slide" data-index="2">
+    <div class="sc"><div class="split" style="grid-template-columns:1.3fr 1fr">
+      <div>
+        <div class="stpi"><div class="sd d"></div><div class="sd c"></div><div class="sd"></div><div class="sd"></div></div>
+        <h2 class="st">Streamer Dashboard</h2>
+        <p class="ss">Twitch authenticated. Everything in one view.</p>
+        <div class="card">
+          <h3>Twitch Streamer Account</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface);border-radius:10px;padding:10px 14px;border:1px solid rgba(145,70,255,.35)">
+            <div class="twitch-profile-pill">
+              <img src="https://static-cdn.jtvnw.net/jtv_user_pictures/4256f157-ba71-4648-b4b1-e0c2f2560381-profile_image-150x150.png" alt="ZeratoR" />
+              <strong>ZeratoR</strong>
+              <span class="twitch-badge-chip">STREAMER LIVE</span>
+            </div>
+            <span style="font-size:.75rem;color:var(--muted)">twitch.tv/zerator</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Session Code & QR</h3>
+          <div style="display:flex;align-items:center;gap:16px">
+            <div class="qr" id="qr"></div>
+            <div>
+              <div style="font-family:var(--mono);font-size:1.4rem;font-weight:900;letter-spacing:.2em;color:var(--accent2)">RAID7</div>
+              <div style="font-size:.75rem;color:var(--muted);margin-top:4px">crowdraid.live/play/RAID7</div>
+              <div style="margin-top:8px"><div class="dot dg" style="display:inline-block;vertical-align:middle"></div><span style="font-size:.75rem;color:var(--green);margin-left:6px;font-weight:700">LIVE · 47 Twitch raiders</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Pick a Game</h3>
+          <div class="games">
+            <div class="gi sel"><div class="gil"><div class="gic"><i data-lucide="swords" style="width:16px;height:16px"></i></div><div><div class="gin">Boss Raid</div><div class="gid">Chat attacks a shared HP boss</div></div></div><div class="gbg">Selected</div></div>
+            <div class="gi"><div class="gil"><div class="gic"><i data-lucide="help-circle" style="width:16px;height:16px"></i></div><div><div class="gin">Speed Quiz</div><div class="gid">First correct answer wins</div></div></div></div>
+            <div class="gi"><div class="gil"><div class="gic"><i data-lucide="joystick" style="width:16px;height:16px"></i></div><div><div class="gin">Pixel Jump</div><div class="gid">Tap together to survive</div></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card"><h3>Live Stats</h3><div class="statrow">
+          <div class="stat"><div class="v">47</div><div class="l">Viewers</div></div>
+          <div class="stat"><div class="v">312</div><div class="l">Attacks</div></div>
+          <div class="stat"><div class="v" id="hpstat">68%</div><div class="l">Boss HP</div></div>
+        </div></div>
+        <div class="card"><h3>Boss HP</h3><div class="hpw">
+          <div class="hpl"><span>Dark Overlord</span><span id="hpval">68%</span></div>
+          <div class="hpt"><div class="hpf" id="hpbar" style="width:68%"></div></div>
+        </div></div>
+        <div class="card" style="text-align:center"><button class="abtn rage" style="font-size:.85rem;padding:12px;margin:0"><i data-lucide="flame"></i> Trigger Boss Rage (x2 DMG)</button></div>
+        <div class="card"><h3>OBS Transparent Overlay URL</h3>
+          <div style="font-family:var(--mono);font-size:.72rem;color:var(--accent2);word-break:break-all">/overlay/RAID7?transparent=true</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:4px">Paste into OBS Browser Source (1920x200)</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <!-- 4 VIEWER JOINS -->
+  <div class="slide" data-index="3">
+    <div class="sc"><div class="split">
+      <div>
+        <div class="stpi"><div class="sd d"></div><div class="sd d"></div><div class="sd c"></div><div class="sd"></div></div>
+        <h2 class="st">Viewer Joins with Twitch</h2>
+        <p class="ss">Scan the QR code or click from Twitch chat. One click to connect.</p>
+        <div class="card" style="margin-bottom:16px"><h3>Direct Session URL</h3><div class="urlbox">crowdraid.live/play/RAID7</div><p style="font-size:.8rem;color:var(--muted);margin-top:8px">Viewers open this link on their smartphone.</p></div>
+        <div class="card"><h3>1-Click Twitch Connection</h3>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button class="btn-twitch" style="padding:12px"><i data-lucide="shield-check" style="width:16px;height:16px"></i> Connect with Twitch (1-Click)</button>
+            <div style="font-size:.75rem;color:var(--muted);text-align:center">Or join with a simple custom nickname</div>
+          </div>
+        </div>
+      </div>
+      <div class="phonewrap" style="align-items:flex-start;padding-top:20px">
+        <div class="phone">
+          <div class="phonebar"><div class="phonenotch"></div></div>
+          <div class="phonescreen">
+            <div style="text-align:center;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:10px">
+              <div style="font-size:.7rem;color:var(--muted)">crowdraid.live</div>
+              <div style="font-size:.9rem;font-weight:900;color:var(--accent2)">RAID7</div>
+            </div>
+            <div style="background:rgba(145,70,255,.18);border:1px solid rgba(145,70,255,.4);border-radius:10px;padding:8px;display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <img src="https://api.dicebear.com/7.x/bottts/svg?seed=DragonSlayer" style="width:30px;height:30px;border-radius:50%;border:1.5px solid var(--twitch)" alt="" />
+              <div>
+                <div style="font-size:.75rem;font-weight:700">XxDragonSlayer99</div>
+                <div style="font-size:.65rem;color:var(--muted)">Twitch Sub <i data-lucide="star" style="width:10px;height:10px;color:var(--yellow);display:inline"></i></div>
+              </div>
+            </div>
+            <div class="btn-twitch" style="width:100%;font-size:.8rem;padding:10px"><i data-lucide="gamepad-2" style="width:15px;height:15px"></i> Join the Raid!</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <!-- 5 VIEWER CONTROLLER -->
+  <div class="slide" data-index="4">
+    <div class="sc"><div class="split">
+      <div>
+        <div class="stpi"><div class="sd d"></div><div class="sd d"></div><div class="sd d"></div><div class="sd c"></div></div>
+        <h2 class="st">Mobile Viewer Controller</h2>
+        <p class="ss">One thumb. Haptic feedback. Real-time Twitch interaction.</p>
+        <div class="card"><h3>My Stats</h3><div class="statrow">
+          <div class="stat"><div class="v">1,840</div><div class="l">My Points</div></div>
+          <div class="stat"><div class="v">#3</div><div class="l">My Rank</div></div>
+          <div class="stat"><div class="v" style="color:var(--yellow)">x2</div><div class="l">Rage Bonus</div></div>
+        </div></div>
+        <div class="card"><h3>Boss HP</h3><div class="hpw">
+          <div class="hpl"><span>Dark Overlord</span><span>42%</span></div>
+          <div class="hpt"><div class="hpf rage" style="width:42%"></div></div>
+        </div></div>
+      </div>
+      <div class="phonewrap" style="align-items:flex-start;padding-top:20px">
+        <div class="phone" style="width:220px">
+          <div class="phonebar"><div class="phonenotch"></div></div>
+          <div class="phonescreen">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=DragonSlayer" style="width:20px;height:20px;border-radius:50%" alt="" />
+                <span style="font-size:.7rem;font-weight:700">XxDragonSlayer99</span>
+              </div>
+              <div class="rage-badge"><i data-lucide="flame" style="width:11px;height:11px"></i> RAGE</div>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:8px">
+              <div style="flex:1;background:var(--surface);border-radius:6px;padding:6px;text-align:center"><div style="font-size:.85rem;font-weight:900;color:var(--accent2)">1,840</div><div style="font-size:.6rem;color:var(--muted)">pts</div></div>
+              <div style="flex:1;background:var(--surface);border-radius:6px;padding:6px;text-align:center"><div style="font-size:.85rem;font-weight:900;color:var(--yellow)">#3</div><div style="font-size:.6rem;color:var(--muted)">rank</div></div>
+            </div>
+            <div class="floatwrap" id="floatarea"></div>
+            <button class="abtn rage" id="atkbtn" style="font-size:.85rem;padding:14px;margin:0 0 8px"><i data-lucide="swords" style="width:16px;height:16px"></i> ATTACK!</button>
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px">
+              <div style="font-size:.65rem;color:var(--muted);margin-bottom:4px">Top Raiders</div>
+              <div style="font-size:.7rem;font-weight:700;display:flex;align-items:center;gap:4px"><i data-lucide="medal" style="width:13px;height:13px;color:#ffc83b"></i> SpeedKillZ · 2,410 pts</div>
+              <div style="font-size:.7rem;color:var(--muted);display:flex;align-items:center;gap:4px"><i data-lucide="medal" style="width:13px;height:13px;color:#cbd5e1"></i> N3bulaDx · 2,100 pts</div>
+              <div style="font-size:.7rem;color:var(--accent);display:flex;align-items:center;gap:4px"><i data-lucide="medal" style="width:13px;height:13px;color:#d97706"></i> XxDragonSlayer99 · 1,840 pts</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <!-- 6 OBS -->
+  <div class="slide" data-index="5">
+    <div class="sc">
+      <h2 class="st">OBS Transparent Overlay</h2>
+      <p class="ss">Streamer and top raiders displayed with Twitch avatars and live health.</p>
+      <div class="obsprev" style="max-width:720px;margin:0 auto">
+        <div class="obslbl"><i data-lucide="monitor-play" style="width:13px;height:13px"></i> OBS Browser Source · 1920x200 · Transparent Background</div>
+        <div class="obstop">
+          <div style="width:34px;height:34px;border-radius:8px;background:rgba(157,125,234,.2);display:flex;align-items:center;justify-content:center;color:var(--accent2)">
+            <i data-lucide="swords" style="width:18px;height:18px"></i>
+          </div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="font-size:.78rem;font-weight:700">Dark Overlord · Boss Raid</div>
+              <span class="twitch-badge-chip">STREAM: ZeratoR</span>
+            </div>
+            <div class="hpt" style="margin-top:5px"><div class="hpf rage" id="obshp" style="width:42%"></div></div>
+          </div>
+          <div style="text-align:right">
+            <div class="rage-badge"><i data-lucide="flame" style="width:12px;height:12px"></i> RAGE x2</div>
+            <div style="font-size:.8rem;color:var(--green);font-weight:700;margin-top:4px">47 live raiders</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <div style="background:rgba(157,125,234,.12);border:1px solid rgba(157,125,234,.3);border-radius:8px;padding:6px 12px;font-size:.8rem;flex:1">
+            <div style="font-size:.65rem;color:var(--muted);display:flex;align-items:center;gap:4px"><i data-lucide="medal" style="width:12px;height:12px;color:#ffc83b"></i> Top Raider</div>
+            <div style="font-weight:700;color:var(--yellow)">SpeedKillZ — 2,410 pts</div>
+          </div>
+          <div style="background:rgba(157,125,234,.12);border:1px solid rgba(157,125,234,.3);border-radius:8px;padding:6px 12px;font-size:.8rem;flex:1">
+            <div style="font-size:.65rem;color:var(--muted);display:flex;align-items:center;gap:4px"><i data-lucide="medal" style="width:12px;height:12px;color:#cbd5e1"></i> Rank #2</div>
+            <div style="font-weight:700;color:#cbd5e1">N3bulaDx — 2,100 pts</div>
+          </div>
+          <div style="background:rgba(157,125,234,.12);border:1px solid rgba(157,125,234,.3);border-radius:8px;padding:6px 12px;font-size:.8rem;flex:1">
+            <div style="font-size:.65rem;color:var(--muted);display:flex;align-items:center;gap:4px"><i data-lucide="medal" style="width:12px;height:12px;color:#d97706"></i> Rank #3</div>
+            <div style="font-weight:700;color:#f59e0b">XxDragonSlayer99 — 1,840 pts</div>
+          </div>
+        </div>
+      </div>
+      <div style="max-width:720px;margin:20px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="card" style="margin:0"><h3>Copy into OBS</h3><div style="font-family:var(--mono);font-size:.78rem;color:var(--accent2);word-break:break-all">/overlay/RAID7?transparent=true</div><p style="font-size:.75rem;color:var(--muted);margin-top:6px">Browser Source > paste URL > Transparent background checked</p></div>
+        <div class="card" style="margin:0"><h3>Auto-updates live</h3><p style="font-size:.8rem;color:var(--muted);line-height:1.5">Boss HP, player count, top 3 ranks, and rage state update via WebSocket — no refresh needed.</p></div>
+      </div>
+    </div>
+  </div>
+  <!-- 7 HISTORY -->
+  <div class="slide" data-index="6">
+    <div class="sc"><div class="split">
+      <div>
+        <h2 class="st">History & Rankings</h2>
+        <p class="ss">Streamers and viewers can inspect every past match.</p>
+        <div class="card"><h3>Streamer — Past Sessions</h3>
+          <table class="ht">
+            <thead><tr><th>Date</th><th>Game</th><th>Players</th><th>Winner</th></tr></thead>
+            <tbody>
+              <tr><td>Oct 31 · 19:05</td><td><span class="chip cr">Boss Raid</span></td><td>47</td><td><i data-lucide="medal" style="width:12px;height:12px;color:#ffc83b;vertical-align:middle"></i> SpeedKillZ</td></tr>
+              <tr><td>Oct 30 · 21:00</td><td><span class="chip cq">Speed Quiz</span></td><td>32</td><td><i data-lucide="medal" style="width:12px;height:12px;color:#ffc83b;vertical-align:middle"></i> N3bulaDx</td></tr>
+              <tr><td>Oct 29 · 20:30</td><td><span class="chip cp">Pixel Jump</span></td><td>28</td><td><i data-lucide="medal" style="width:12px;height:12px;color:#ffc83b;vertical-align:middle"></i> ProGamerXD</td></tr>
+              <tr><td>Oct 28 · 18:45</td><td><span class="chip cr">Boss Raid</span></td><td>61</td><td><i data-lucide="medal" style="width:12px;height:12px;color:#ffc83b;vertical-align:middle"></i> XxDragonSlayer99</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div style="margin-top:32px">
+          <div class="card"><h3>Viewer — My Personal Stats</h3>
+            <div class="hi"><div class="hit"><span class="hg"><i data-lucide="swords" style="width:13px;height:13px"></i> Boss Raid</span><span class="hr">#3</span></div><div style="display:flex;justify-content:space-between"><span class="hd">Oct 31 · 19:05</span><span class="hp-pts">1,840 pts</span></div></div>
+            <div class="hi"><div class="hit"><span class="hg"><i data-lucide="help-circle" style="width:13px;height:13px"></i> Speed Quiz</span><span class="hr">#7</span></div><div style="display:flex;justify-content:space-between"><span class="hd">Oct 30 · 21:00</span><span class="hp-pts">520 pts</span></div></div>
+            <div class="hi"><div class="hit"><span class="hg"><i data-lucide="joystick" style="width:13px;height:13px"></i> Pixel Jump</span><span class="hr">#12</span></div><div style="display:flex;justify-content:space-between"><span class="hd">Oct 29 · 20:30</span><span class="hp-pts">380 pts</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+  <!-- 8 CTA -->
+  <div class="slide" data-index="7">
+    <div class="sc"><div class="fc" style="max-width:700px;margin:0 auto">
+      <div style="margin-bottom:16px"><i data-lucide="trophy" style="width:48px;height:48px;color:var(--yellow)"></i></div>
+      <h2 class="st">Ready to Raid on Twitch?</h2>
+      <p class="ss" style="margin-bottom:32px">CrowdRaid turns passive stream viewers into active raiders — zero friction, maximum chat hype.</p>
+      <div class="fgrid">
+        <div class="fcard"><div class="fi"><i data-lucide="zap"></i></div><h4>Instant Setup</h4><p>Open a lobby, connect Twitch, share the code, go live in under 60 seconds.</p></div>
+        <div class="fcard"><div class="fi"><i data-lucide="bar-chart-2"></i></div><h4>Full History</h4><p>Track every session — dates, scores, podiums for streamers and viewers.</p></div>
+        <div class="fcard"><div class="fi"><i data-lucide="monitor-play"></i></div><h4>OBS Native</h4><p>Transparent browser source — drop it on your scene and it just works.</p></div>
+      </div>
+      <div style="margin-top:32px;padding:20px;background:var(--card);border:1px solid var(--border);border-radius:14px">
+        <div style="font-size:.85rem;color:var(--muted);margin-bottom:8px">Start playing now on your local server</div>
+        <div class="urlbox">localhost:5173</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:8px">Share <code style="color:var(--accent2)">/play/[CODE]</code> directly in your Twitch chat</div>
+      </div>
+    </div></div>
+  </div>
+</div>
+<div class="navrow">
+  <button class="nb" id="prevbtn"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Prev</button>
+  <button class="nb pri" id="nextbtn">Next <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
+  <button class="nb" id="auto-btn"><i data-lucide="play" style="width:14px;height:14px"></i> Auto Play</button>
+</div>
+<script>
+const SUBS=[
+  {s:"NARRATOR",t:"Welcome to CrowdRaid — the interactive platform that turns your Twitch stream into a real-time boss raid. Streamers and viewers connect seamlessly with their Twitch account."},
+  {s:"NARRATOR",t:"Here's how it works in three simple steps. The streamer connects with Twitch, chooses a game, and shares a QR code. Viewers scan it, link their Twitch with 1-click, and they're instantly in the raid."},
+  {s:"STREAMER",t:"As a streamer, I connect my Twitch profile — ZeratoR — at slash host. I see the session code RAID7 and a QR code my viewers scan directly on stream. I pick Boss Raid as today's game."},
+  {s:"VIEWER",t:"As a viewer, I open the link from Twitch chat or scan the QR code. I tap Connect with Twitch: my avatar and Sub badge sync immediately. I am in the game in three seconds."},
+  {s:"VIEWER",t:"My mobile controller shows the boss health, my points, my ranking, and a big attack button. When the streamer triggers Rage Mode, damage doubles and my phone vibrates with haptic feedback!"},
+  {s:"STREAMER",t:"In OBS, I add a Browser Source and paste my transparent overlay URL. Boss health, player count, and the top three leaderboard with Twitch avatars update live via WebSocket on my live stream."},
+  {s:"NARRATOR",t:"After every session, streamers review their full history: dates, game types, participants, and podiums. Viewers see their personal stats — rank, score, and dates played."},
+  {s:"NARRATOR",t:"CrowdRaid gives your Twitch chat a reason to stay, attack together, and come back for the next stream raid. Ready to play?"}
+];
+let cur=0,isAuto=false,timer=null;
+const slides=document.querySelectorAll('.slide');
+const prog=document.getElementById('prog'),scnt=document.getElementById('scnt'),spk=document.getElementById('spk'),stxt=document.getElementById('stxt');
+const prevbtn=document.getElementById('prevbtn'),nextbtn=document.getElementById('nextbtn'),autobtn=document.getElementById('auto-btn');
+
+function renderIcons(){
+  if(window.lucide && window.lucide.createIcons){
+    window.lucide.createIcons();
+  }
+}
+
+function goTo(i){
+  if(i<0||i>=SUBS.length)return;
+  slides[cur].classList.remove('active');
+  slides[cur].classList.add('exit');
+  const o=cur;
+  setTimeout(()=>slides[o].classList.remove('exit'),400);
+  cur=i;
+  slides[cur].classList.add('active');
+  sync();
+  renderIcons();
+}
+
+function sync(){
+  prog.style.width=((cur+1)/SUBS.length*100)+'%';
+  scnt.textContent=(cur+1)+' / '+SUBS.length;
+  spk.innerHTML='<i data-lucide="mic" style="width:12px;height:12px"></i> '+SUBS[cur].s;
+  stxt.textContent=SUBS[cur].t;
+  prevbtn.style.opacity=cur===0?'.4':'1';
+  nextbtn.innerHTML=cur===SUBS.length-1?'Finish <i data-lucide="check" style="width:14px;height:14px"></i>':'Next <i data-lucide="arrow-right" style="width:14px;height:14px"></i>';
+  renderIcons();
+}
+
+nextbtn.addEventListener('click',()=>{if(cur<SUBS.length-1)goTo(cur+1);});
+prevbtn.addEventListener('click',()=>{if(cur>0)goTo(cur-1);});
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();if(cur<SUBS.length-1)goTo(cur+1);}
+  if(e.key==='ArrowLeft'){e.preventDefault();if(cur>0)goTo(cur-1);}
+});
+autobtn.addEventListener('click',()=>{
+  isAuto=!isAuto;
+  autobtn.classList.toggle('on',isAuto);
+  autobtn.innerHTML=isAuto?'<i data-lucide="pause" style="width:14px;height:14px"></i> Pause':'<i data-lucide="play" style="width:14px;height:14px"></i> Auto Play';
+  renderIcons();
+  if(isAuto){
+    timer=setInterval(()=>{
+      if(cur<SUBS.length-1)goTo(cur+1);
+      else{
+        isAuto=false;
+        autobtn.classList.remove('on');
+        autobtn.innerHTML='<i data-lucide="play" style="width:14px;height:14px"></i> Auto Play';
+        renderIcons();
+        clearInterval(timer);
+      }
+    },6000);
+  }else{
+    clearInterval(timer);
+  }
+});
+
+const qrel=document.getElementById('qr');
+if(qrel){
+  [1,1,1,0,1,1,1,1,0,1,0,1,0,1,1,1,1,0,0,1,0,0,1,0,1,0,1,1,1,1,1,0,1,1,1,1,0,1,0,0,0,1,1,1,1,0,1,1,1].forEach(v=>{
+    const d=document.createElement('div');
+    d.className='qc'+(v===0?' w':'');
+    qrel.appendChild(d);
+  });
+}
+
+const fa=document.getElementById('floatarea'),atkbtn=document.getElementById('atkbtn');
+function spawnF(crit){
+  if(!fa)return;
+  const el=document.createElement('div');
+  const d=crit?Math.floor(80+Math.random()*60):Math.floor(20+Math.random()*40);
+  el.className='fn'+(crit?' crit':'');
+  el.textContent=(crit?'CRIT! ':'')+'+'+d;
+  el.style.left=(20+Math.random()*60)+'%';
+  fa.appendChild(el);
+  setTimeout(()=>el.remove(),1600);
+}
+
+if(atkbtn){
+  atkbtn.addEventListener('click',()=>{
+    spawnF(Math.random()<.25);
+    if(navigator.vibrate)navigator.vibrate(35);
+  });
+}
+
+setInterval(()=>{
+  if(document.querySelector('.slide[data-index="4"].active'))spawnF(Math.random()<.2);
+},2200);
+
+let hpv=68;
+setInterval(()=>{
+  if(!document.querySelector('.slide[data-index="2"].active'))return;
+  hpv=Math.max(5,hpv-Math.floor(Math.random()*3));
+  const b=document.getElementById('hpbar'),lv=document.getElementById('hpval'),ps=document.getElementById('hpstat');
+  if(b)b.style.width=hpv+'%';
+  if(lv)lv.textContent=hpv+'%';
+  if(ps)ps.textContent=hpv+'%';
+},1800);
+
+let ov=42;
+setInterval(()=>{
+  if(!document.querySelector('.slide[data-index="5"].active'))return;
+  ov=Math.max(3,ov-Math.floor(Math.random()*2));
+  const o=document.getElementById('obshp');
+  if(o)o.style.width=ov+'%';
+},2000);
+
+sync();
+renderIcons();
+</script>
+</body>
+</html>

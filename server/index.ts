@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Server } from "socket.io";
-import { GAMES, type GameId, type SessionState } from "../src/types.ts";
+import { GAMES, type GameId, type SessionState, type TwitchUser } from "../src/types.ts";
 import { db, type SessionRow, type PlayerRow, getHostSessionsHistory, getViewerSessionsHistory } from "./db.ts";
 import type { SQLInputValue } from "node:sqlite";
 
@@ -16,6 +16,7 @@ const io = new Server(httpServer, { cors: { origin: true } });
 // --- Etats partagés (nécessaires pour le classage et le chrono) ---
 
 const onlinePlayers = new Map<string, Set<string>>();
+const streamerTwitchProfiles = new Map<string, TwitchUser>();
 const gameTimers = new Map<string, ReturnType<typeof setInterval>>();
 const rageTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -38,6 +39,7 @@ function randomCode(length = 5): string {
 // --- Helpers SQLite ---
 
 function findSession(code: string): SessionRow | undefined {
+  if (!code) return undefined;
   return db.prepare("SELECT * FROM sessions WHERE code = ?").get(code) as SessionRow | undefined;
 }
 
@@ -49,17 +51,19 @@ function getPlayer(sessionCode: string, id: string): PlayerRow | undefined {
   return db.prepare("SELECT * FROM players WHERE session_code = ? AND id = ?").get(sessionCode, id) as unknown as PlayerRow | undefined;
 }
 
-function upsertPlayer(id: string, sessionCode: string, nickname: string): void {
+function upsertPlayer(id: string, sessionCode: string, nickname: string, avatar = "", badge = ""): void {
   const now = Date.now();
   db.prepare(
-    `INSERT INTO players (id, session_code, nickname, score, last_attack, created_at, updated_at)
-     VALUES (?, ?, ?, 0, 0, ?, ?)
+    `INSERT INTO players (id, session_code, nickname, avatar, badge, score, last_attack, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        nickname = excluded.nickname,
+       avatar = CASE WHEN excluded.avatar != '' THEN excluded.avatar ELSE players.avatar END,
+       badge = CASE WHEN excluded.badge != '' THEN excluded.badge ELSE players.badge END,
        score = COALESCE(players.score, 0),
        last_attack = 0,
        updated_at = excluded.updated_at`
-  ).run(...([id, sessionCode, nickname, now, now] as SQLInputValue[]));
+  ).run(...([id, sessionCode, nickname, avatar, badge, now, now] as SQLInputValue[]));
 }
 
 function updatePlayerScore(sessionCode: string, id: string, score: number, updatedAt: number): void {
@@ -97,7 +101,13 @@ function publicState(session: SessionRow): SessionState {
   const players = getPlayers(session.code);
   const onlineCount = onlinePlayers.get(session.code)?.size ?? 0;
   const totalDamage = players.reduce((sum, p) => sum + p.score, 0);
-  const topPlayers = players.slice(0, 5).map((p) => ({ id: p.id, nickname: p.nickname, score: p.score }));
+  const topPlayers = players.slice(0, 5).map((p) => ({
+    id: p.id,
+    nickname: p.nickname,
+    score: p.score,
+    avatar: p.avatar || undefined,
+    badge: (p.badge as any) || undefined,
+  }));
   return {
     code: session.code,
     status: session.status as SessionState["status"],
@@ -115,6 +125,7 @@ function publicState(session: SessionRow): SessionState {
     prompt: session.prompt,
     options: parseOptions(session),
     target: session.game_id === "quiz" ? "" : session.target,
+    streamerTwitch: streamerTwitchProfiles.get(session.code) || null,
   };
 }
 
@@ -184,6 +195,17 @@ io.on("connection", (socket) => {
     publish(session);
   });
 
+  socket.on("host:set_twitch", ({ twitchUser }: { twitchUser: TwitchUser }, ack?: (result: unknown) => void) => {
+    const session = findSession(socket.data.code as string);
+    if (!session || socket.data.role !== "host" || session.host_token !== socket.data.hostToken) {
+      ack?.({ ok: false, error: "Action réservée au streamer." });
+      return;
+    }
+    streamerTwitchProfiles.set(session.code, twitchUser);
+    ack?.({ ok: true });
+    publish(session);
+  });
+
   socket.on("history:host", ({ hostToken }: { hostToken?: string } = {}, ack?: (result: unknown) => void) => {
     try {
       const history = getHostSessionsHistory(hostToken);
@@ -214,7 +236,13 @@ io.on("connection", (socket) => {
     ack?.({ ok: true, state: publicState(session) });
   });
 
-  socket.on("viewer:join", ({ code, nickname, playerId }: { code: string; nickname: string; playerId?: string }, ack?: (result: unknown) => void) => {
+  socket.on("viewer:join", ({ code, nickname, playerId, avatar, badge }: {
+    code: string;
+    nickname: string;
+    playerId?: string;
+    avatar?: string;
+    badge?: string;
+  }, ack?: (result: unknown) => void) => {
     const session = findSession(code);
     if (!session || session.status === "ended") {
       ack?.({ ok: false, error: "Cette partie est terminée ou introuvable." });
@@ -225,8 +253,8 @@ io.on("connection", (socket) => {
       ack?.({ ok: false, error: "Entre un pseudo de 1 à 16 caractères." });
       return;
     }
-    const id = playerId && /^[\\w-]{8,64}$/.test(playerId) ? playerId : crypto.randomUUID();
-    upsertPlayer(id, session.code, cleanNickname);
+    const id = playerId && /^[\w-]{8,64}$/.test(playerId) ? playerId : crypto.randomUUID();
+    upsertPlayer(id, session.code, cleanNickname, avatar || "", badge || "");
     const online = onlinePlayers.get(session.code) ?? new Set<string>();
     onlinePlayers.set(session.code, online);
     online.add(id);
@@ -497,6 +525,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    if (!socket.data.code) return;
     const session = findSession(socket.data.code as string);
     if (session && socket.data.role === "viewer") {
       const online = onlinePlayers.get(session.code);
@@ -510,6 +539,13 @@ io.on("connection", (socket) => {
 });
 
 // ----------------------------------------------------
+
+app.get("/api/twitch/config", (_req, res) => {
+  res.json({
+    clientId: process.env.TWITCH_CLIENT_ID || process.env.VITE_TWITCH_CLIENT_ID || "",
+    configured: Boolean(process.env.TWITCH_CLIENT_ID || process.env.VITE_TWITCH_CLIENT_ID),
+  });
+});
 
 const distPath = join(process.cwd(), "dist");
 if (existsSync(distPath)) {

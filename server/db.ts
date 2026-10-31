@@ -37,6 +37,8 @@ export interface PlayerRow {
   id: string;
   session_code: string;
   nickname: string;
+  avatar?: string;
+  badge?: string;
   score: number;
   last_attack: number;
   created_at: number;
@@ -70,6 +72,8 @@ export function initSchema() {
     id            TEXT PRIMARY KEY,
     session_code  TEXT NOT NULL,
     nickname      TEXT NOT NULL,
+    avatar        TEXT NOT NULL DEFAULT '',
+    badge         TEXT NOT NULL DEFAULT '',
     score         INTEGER NOT NULL DEFAULT 0,
     last_attack   INTEGER NOT NULL DEFAULT 0,
     created_at    INTEGER NOT NULL,
@@ -77,6 +81,13 @@ export function initSchema() {
     FOREIGN KEY (session_code) REFERENCES sessions(code) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_players_session ON players(session_code);`);
+
+  try {
+    db.exec("ALTER TABLE players ADD COLUMN avatar TEXT DEFAULT ''");
+  } catch {}
+  try {
+    db.exec("ALTER TABLE players ADD COLUMN badge TEXT DEFAULT ''");
+  } catch {}
 }
 
 // --- Helpers de lecture / écriture ---
@@ -93,17 +104,19 @@ export function getPlayer(sessionCode: string, id: string): PlayerRow | undefine
   return db.prepare("SELECT * FROM players WHERE session_code = ? AND id = ?").get(sessionCode, id) as unknown as PlayerRow | undefined;
 }
 
-export function upsertPlayer(id: string, sessionCode: string, nickname: string): void {
+export function upsertPlayer(id: string, sessionCode: string, nickname: string, avatar = "", badge = ""): void {
   const now = Date.now();
   db.prepare(
-    `INSERT INTO players (id, session_code, nickname, score, last_attack, created_at, updated_at)
-     VALUES (?, ?, ?, 0, 0, ?, ?)
+    `INSERT INTO players (id, session_code, nickname, avatar, badge, score, last_attack, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        nickname = excluded.nickname,
+       avatar = CASE WHEN excluded.avatar != '' THEN excluded.avatar ELSE players.avatar END,
+       badge = CASE WHEN excluded.badge != '' THEN excluded.badge ELSE players.badge END,
        score = COALESCE(players.score, 0),
        last_attack = 0,
        updated_at = excluded.updated_at`
-  ).run(...([id, sessionCode, nickname, now, now] as SQLInputValue[]));
+  ).run(...([id, sessionCode, nickname, avatar, badge, now, now] as SQLInputValue[]));
 }
 
 export function updatePlayerScore(sessionCode: string, id: string, score: number, updatedAt: number): void {

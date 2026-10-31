@@ -1,4 +1,20 @@
-export type PlayerScore = { id: string; nickname: string; score: number };
+export type TwitchUser = {
+  id: string;
+  login: string;
+  displayName: string;
+  avatar: string;
+  isStreamer?: boolean;
+  role?: "streamer" | "mod" | "sub" | "vip" | "viewer";
+};
+
+export type PlayerScore = {
+  id: string;
+  nickname: string;
+  score: number;
+  avatar?: string;
+  twitchLogin?: string;
+  badge?: "streamer" | "mod" | "sub" | "vip" | "viewer";
+};
 export type GameId = "jump" | "boss" | "quiz" | "marble" | "arena";
 export const GAMES: { id: GameId; name: string; genre: string; description: string }[] = [
   { id: "jump", name: "Pixel Jump Royale", genre: "PLATFORMER · 2D", description: "Sautez ensemble au-dessus des obstacles." },
@@ -25,6 +41,7 @@ export type SessionState = {
   prompt: string;
   options: string[];
   target: string;
+  streamerTwitch?: TwitchUser | null;
 };
 
 export type Ack<T = Record<string, never>> =

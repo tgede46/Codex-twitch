@@ -188,7 +188,6 @@ export function Arena({ state, className = "" }: { state: SessionState | null; c
 
   useEffect(() => {
     sceneRef.current?.sync?.();
-    sceneRef.current?.game.scale.refresh();
   }, [state?.gameId, state?.playerCount, state?.prompt, state?.target, state?.options]);
 
   return <div className={`arena ${className}`} ref={host} aria-label={`Jeu 2D ${state?.gameId ?? "Boss Raid"}`} role="img" />;

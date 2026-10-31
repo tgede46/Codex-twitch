@@ -788,4 +788,346 @@ a { color: inherit; text-decoration: none; }
   font-size: 14px;
 }
 
+/* ==================== STYLES TWITCH ET ICONES ==================== */
+
+.button-twitch {
+  background: #9146FF !important;
+  color: #ffffff !important;
+  border: 1px solid #a970ff !important;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(145, 70, 255, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.button-twitch:hover {
+  background: #772ce8 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(145, 70, 255, 0.45);
+}
+
+.twitch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.twitch-badge-streamer {
+  background: rgba(145, 70, 255, 0.25);
+  color: #bf94ff;
+  border: 1px solid rgba(145, 70, 255, 0.5);
+}
+.twitch-badge-mod {
+  background: rgba(0, 173, 94, 0.22);
+  color: #00f587;
+  border: 1px solid rgba(0, 173, 94, 0.45);
+}
+.twitch-badge-vip {
+  background: rgba(224, 62, 170, 0.22);
+  color: #ff7be5;
+  border: 1px solid rgba(224, 62, 170, 0.45);
+}
+.twitch-badge-sub {
+  background: rgba(255, 180, 0, 0.22);
+  color: #ffd043;
+  border: 1px solid rgba(255, 180, 0, 0.45);
+}
+.twitch-badge-viewer {
+  background: rgba(145, 70, 255, 0.15);
+  color: #9146FF;
+}
+
+/* Modal Twitch */
+.twitch-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 8, 16, 0.82);
+  backdrop-filter: blur(10px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.2s ease-out;
+}
+.twitch-modal-card {
+  background: #181524;
+  border: 1px solid #362f4e;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 460px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(145, 70, 255, 0.2);
+  overflow: hidden;
+  animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modalPop {
+  0% { opacity: 0; transform: scale(0.94) translateY(12px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.twitch-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #28223a;
+}
+.twitch-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.twitch-icon-badge {
+  background: #9146FF;
+  color: #fff;
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(145, 70, 255, 0.4);
+}
+.twitch-modal-title h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #f7f5fd;
+  font-weight: 700;
+}
+.twitch-modal-title p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #a49cb5;
+}
+.twitch-modal-body {
+  padding: 18px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.twitch-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #9287a9;
+}
+.twitch-presets-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.twitch-preset-card {
+  background: #201c30;
+  border: 1px solid #332b4b;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+  position: relative;
+}
+.twitch-preset-card:hover {
+  background: #29243e;
+  border-color: #9146FF;
+  transform: translateY(-1px);
+}
+.twitch-preset-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #58448a;
+  flex-shrink: 0;
+}
+.twitch-preset-info {
+  flex: 1;
+  min-width: 0;
+}
+.twitch-preset-info strong {
+  display: block;
+  font-size: 13px;
+  color: #ece7f8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.twitch-preset-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+.twitch-preset-tags small {
+  color: #8c82a1;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.twitch-preset-action {
+  font-size: 11px;
+  color: #b18aff;
+  font-weight: 600;
+}
+.twitch-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #7a708e;
+  font-size: 11px;
+  font-weight: 600;
+  margin: 6px 0;
+}
+.twitch-divider::before,
+.twitch-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #2c2540;
+}
+.twitch-divider span {
+  padding: 0 10px;
+}
+.twitch-custom-form label {
+  display: block;
+  font-size: 12px;
+  color: #b5adc8;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.twitch-role-picker {
+  margin-top: 10px;
+}
+.twitch-role-label {
+  display: block;
+  font-size: 11px;
+  color: #978dae;
+  margin-bottom: 6px;
+}
+.twitch-roles-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.twitch-role-btn {
+  background: #201c30;
+  border: 1px solid #332b4b;
+  border-radius: 8px;
+  padding: 6px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.twitch-role-btn-active {
+  background: rgba(145, 70, 255, 0.2);
+  border-color: #9146FF;
+}
+
+/* Carte utilisateur Twitch connecté */
+.twitch-connected-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(145, 70, 255, 0.14), rgba(46, 28, 88, 0.28));
+  border: 1px solid rgba(145, 70, 255, 0.38);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+.twitch-connected-compact {
+  padding: 6px 10px;
+  gap: 8px;
+}
+.twitch-connected-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.twitch-connected-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid #9146FF;
+  display: block;
+}
+.twitch-connected-compact .twitch-connected-avatar {
+  width: 28px;
+  height: 28px;
+}
+.twitch-avatar-badge-dot {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: #9146FF;
+  color: #fff;
+  border-radius: 50%;
+  width: 15px;
+  height: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #181524;
+}
+.twitch-connected-details {
+  flex: 1;
+  min-width: 0;
+}
+.twitch-connected-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.twitch-connected-name-row strong {
+  font-size: 14px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.twitch-connected-login {
+  color: #a79dc0;
+  font-size: 11px;
+}
+.twitch-logout-btn {
+  background: transparent;
+  border: none;
+  color: #8c82a1;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.twitch-logout-btn:hover {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.12);
+}
+
+/* Médailles podium Lucide */
+.medal-icon {
+  display: inline-flex;
+  vertical-align: middle;
+}
+.medal-gold {
+  color: #ffc83b !important;
+  filter: drop-shadow(0 0 6px rgba(255, 200, 59, 0.5));
+}
+.medal-silver {
+  color: #cbd5e1 !important;
+  filter: drop-shadow(0 0 4px rgba(203, 213, 225, 0.4));
+}
+.medal-bronze {
+  color: #d97706 !important;
+  filter: drop-shadow(0 0 4px rgba(217, 119, 6, 0.4));
+}
+
 
