@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
   font-family: 'DM Sans', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -240,3 +241,147 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 600px) { .game-picker-grid { grid-template-columns: repeat(2, minmax(0,1fr)); padding: 0 10px; }.game-choice { min-height: 85px; padding: 9px 7px; }.game-choice-meta em { font-size: 7px; }.game-picker .surface-heading { align-items: flex-start; flex-direction: column; }.duration-select { padding: 0 10px 10px; } }
 
 .viewer-game-control .jump-button { background: linear-gradient(110deg, #7952ce, #5e3cc1); color: white; font-size: 20px; grid-column: 1 / -1; min-height: 72px; }
+
+/* Broadcast control room: quieter surfaces, sharper hierarchy, fewer decorative effects. */
+.landing-page {
+  background: #121119;
+  color: #f2eff8;
+}
+.landing-nav { border-bottom: 1px solid #302c38; }
+.landing-page .brand { color: #f2eff8; }
+.landing-page .brand > span:last-child > span { color: #b49eff; }
+.landing-nav-right, .text-link { color: #b3adbf; }
+.landing-page .hero h1 { color: #f3f0f8; font-family: 'Space Grotesk', sans-serif; }
+.landing-page .hero h1 span { background: none; color: #b49eff; }
+.landing-page .hero-description, .landing-page .hero-trust { color: #aaa4b6; }
+.landing-page .hero-trust strong { color: #e6e1ed; }
+.landing-page .eyebrow { color: #b9a9e9; }
+.landing-page .eyebrow-icon, .landing-page .float-tag-icon { background: #302a3d; color: #c2afff; }
+.landing-page .hero-glow { opacity: .48; }
+.landing-page .hero-orbit { border-color: #a78ce91b; }
+.landing-page .float-tag, .landing-page .mini-player { background: #211e2a; border-color: #393544; box-shadow: 0 10px 26px #0003; }
+.landing-page .float-tag strong, .landing-page .mini-player { color: #eeeaf6; }
+.landing-page .float-tag small { color: #aaa4b6; }
+.landing-page .hero-bottom-note { color: #888293; }
+.landing-page .scroll-line { background: #45404f; }
+.landing-page .how-section { background: #17151e; border-color: #302c38; }
+.landing-page .section-heading h2 { color: #f2eff8; font-family: 'Space Grotesk', sans-serif; }
+.landing-page .section-heading p { color: #aaa4b6; }
+.landing-page .step-card { background: #1d1b25; border-color: #332f3d; }
+.landing-page .step-card h3 { color: #eeeaf6; }
+.landing-page .step-card p { color: #aaa4b6; }
+.landing-page .step-index { color: #827b8e; }
+.landing-page .landing-footer { color: #8d8799; }
+.landing-page .footer-pill { background: #302a3d; color: #c2afff; }
+.dashboard-page, .viewer-page {
+  --night: #121119;
+  --panel: #1b1923;
+  --panel-raised: #211e2a;
+  --edge: #332f3d;
+  --copy: #f2eff8;
+  --subcopy: #aaa4b6;
+  --accent: #a58bff;
+  background: var(--night);
+  color: var(--copy);
+  font-family: 'DM Sans', sans-serif;
+}
+.dashboard-page { background-image: radial-gradient(ellipse at 78% -20%, #543d8a24, transparent 46%); }
+.dashboard-page .heading-title-row h1, .dashboard-page .stat-value,
+.viewer-page .controller-greeting h1, .viewer-page .attack-button-inner strong,
+.viewer-page .your-score-card strong { font-family: 'Space Grotesk', sans-serif; }
+.dashboard-page .app-topbar, .dashboard-page .app-sidebar { background: #17151e; border-color: #302c38; }
+.dashboard-page .brand, .dashboard-page .topbar-center, .dashboard-page .session-code-label strong,
+.dashboard-page .heading-title-row h1, .dashboard-page .surface-heading h2,
+.dashboard-page .stat-value, .dashboard-page .sidebar-help strong, .dashboard-page .sidebar-user strong { color: var(--copy); }
+.dashboard-page .brand > span:last-child > span, .dashboard-page .heading-title-row h1 .wave-hand { color: var(--accent); }
+.dashboard-page .sidebar-item { color: #aaa4b6; }
+.dashboard-page .sidebar-item-active, .dashboard-page .sidebar-item:hover { background: #2a2438; color: #c6b5ff; }
+.dashboard-page .sidebar-help, .dashboard-page .topbar-game-icon { background: #292438; border-color: #393348; color: #b5a0ff; }
+.dashboard-page .sidebar-help small, .dashboard-page .sidebar-user small,
+.dashboard-page .heading-title-row p, .dashboard-page .surface-heading p,
+.dashboard-page .stat-foot, .dashboard-page .stat-top, .dashboard-page .breadcrumb { color: var(--subcopy); }
+.dashboard-page .sidebar-user, .dashboard-page .topbar-divider { border-color: var(--edge); }
+.dashboard-page .status-waiting { background: #2a2438; color: #c4b3ff; }
+.dashboard-page .stat-card, .dashboard-page .surface-card, .dashboard-page .participation-strip,
+.dashboard-page .join-strip, .dashboard-page .game-choice, .dashboard-page .dashboard-qr,
+.dashboard-page .join-link-chip, .dashboard-page .overlay-status { background: var(--panel); border-color: var(--edge); }
+.dashboard-page .stat-card, .dashboard-page .surface-card { border-radius: 11px; }
+.dashboard-page .stat-icon-purple, .dashboard-page .stat-icon-peach, .dashboard-page .stat-icon-mint { background: #2a2633; color: #baa6ff; }
+.dashboard-page .game-choice { color: var(--copy); }
+.dashboard-page .game-choice:hover { border-color: #7968a7; transform: translateY(-1px); }
+.dashboard-page .game-choice-active { background: #292337; border-color: #9a80ed; box-shadow: inset 3px 0 #a58bff; }
+.dashboard-page .game-choice-icon { background: #302a3d; }
+.dashboard-page .game-choice-icon svg { color: #c5b3ff; }
+.dashboard-page .game-choice-meta strong, .dashboard-page .participation-copy strong,
+.dashboard-page .overlay-status strong { color: #f2eff8; }
+.dashboard-page .game-choice-meta small, .dashboard-page .game-choice-check { color: #b49eff; }
+.dashboard-page .game-choice-meta em, .dashboard-page .participation-copy span,
+.dashboard-page .overlay-status small { color: #aaa4b6; }
+.dashboard-page .duration-select { color: #aaa4b6; }
+.dashboard-page .duration-select select, .dashboard-page .button-white, .dashboard-page .button-outline {
+  background: #211e2a; border-color: #403a4b; color: #eeeaf6;
+}
+.dashboard-page .button-primary { background: #8b6ce6; box-shadow: none; color: #fff; }
+.dashboard-page .button-primary:hover:not(:disabled) { background: #9b7cf3; box-shadow: none; }
+.dashboard-page .button-rage { background: #3a2926; border-color: #624138; color: #ffc38c; }
+.dashboard-page .participation-strip { background: var(--panel); }
+.dashboard-page .participation-icon, .dashboard-page .participation-icon.participation-active { background: #302a3d; color: #b9a5ff; }
+.dashboard-page .launch-row { color: #bcb6c8; }
+.dashboard-page .leaderboard-row { border-color: var(--edge); }
+.dashboard-page .leader-name { color: #eeeaf6; }
+.dashboard-page .leader-name small, .dashboard-page .empty-leaderboard span { color: #aaa4b6; }
+.dashboard-page .leader-score { color: #c9baff; }
+.dashboard-page .leaderboard-link { border-color: var(--edge); color: #b8a3ff; }
+.dashboard-page .leaderboard-link:hover { background: #272331; }
+.dashboard-page .empty-trophy { background: #292438; color: #b8a3ff; }
+.dashboard-page .arena-frame { border: 1px solid #393246; border-radius: 9px; }
+.dashboard-page .arena-footer { border-color: var(--edge); }
+.dashboard-page .arena-footer .button { background: #211e2a; border-color: #403a4b; color: #eeeaf6; }
+.dashboard-page .overlay-status-icon { background: #302a3d; color: #b9a5ff; }
+
+.viewer-page { min-height: 100vh; background-image: radial-gradient(ellipse at 50% 0, #513a8328, transparent 45%); }
+.viewer-page .brand { color: var(--copy); }
+.viewer-header { border-bottom: 1px solid #302c38; }
+.viewer-connected { color: #a6d9bd; }
+.join-card, .viewer-page .your-score-card, .viewer-page .controller-bottom,
+.viewer-page .controller-wait, .viewer-page .viewer-game-control {
+  background: var(--panel); border-color: var(--edge); box-shadow: none;
+}
+.join-card h1, .controller-greeting h1, .viewer-page .viewer-game-control > strong,
+.viewer-page .your-score-card strong, .viewer-page .controller-wait strong { color: var(--copy); }
+.join-card > p, .controller-player-count, .viewer-page .controller-wait > span,
+.viewer-page .your-score-card small { color: var(--subcopy); }
+.join-card form label { color: #d6d1e0; }
+.name-input-wrap, .viewer-page .controller-player-count { background: #211e2a; border-color: #403a4b; color: #aaa4b6; }
+.name-input-wrap input { color: #f2eff8; }
+.join-safe-note, .viewer-page .your-score-card em, .viewer-page .controller-bottom small { color: #aaa4b6; }
+.viewer-page .join-game-icon { background: #8263d7; box-shadow: none; }
+.viewer-page .join-card h1 span, .viewer-page .controller-greeting h1 span { color: #b49eff; }
+.viewer-page .your-score-icon, .viewer-page .your-rank-pill, .viewer-page .wait-pulse { background: #302a3d; color: #c2afff; }
+.viewer-page .controller-bottom strong { color: #f2eff8; }
+.viewer-page .controller-bottom > div { color: #b49eff; }
+.viewer-page .controller-bottom button { background: #302a3d; color: #c2afff; }
+.viewer-page .viewer-game-control button { background: #292533; border-color: #403a4b; color: #eeeaf6; }
+.viewer-page .viewer-game-control button { align-items: center; display: inline-flex; flex-direction: column; gap: 5px; justify-content: center; }
+.viewer-page .viewer-game-control .jump-button { background: #8b6ce6; color: white; }
+.viewer-page .attack-button { background: #8b6ce6; border-radius: 14px; box-shadow: 0 5px 0 #5b458f; }
+.viewer-page .attack-button:hover:not(:disabled) { background: #9b7cf3; }
+.viewer-page .attack-feedback { color: #b3adbf; }
+.viewer-page .attack-feedback svg { color: #b49eff; }
+.viewer-page .controller-ended .wait-pulse { background: #3b3025; color: #ffc38c; }
+
+@media (max-width: 600px) {
+  .dashboard-page .app-topbar, .dashboard-page .app-sidebar { background: #17151e; }
+  .viewer-page .join-card { border-radius: 17px; }
+}
+
+/* Premium detailing: hierarchy comes from material and spacing, not decoration. */
+.dashboard-page .app-topbar { backdrop-filter: blur(16px); background: #17151ee8; }
+.dashboard-page .stat-card, .dashboard-page .surface-card { box-shadow: inset 0 1px #ffffff08; }
+.dashboard-page .game-choice { border-radius: 9px; }
+.dashboard-page .game-choice-active { box-shadow: inset 3px 0 #a58bff, 0 12px 28px #00000022; }
+.dashboard-page .arena-frame { box-shadow: inset 0 0 0 1px #ffffff0a, 0 20px 48px #00000038; }
+.viewer-page .mobile-boss-card { box-shadow: inset 0 1px #ffffff1f, 0 18px 34px #00000030; }
+.viewer-page .viewer-game-control { border-radius: 13px; }
+.viewer-page .viewer-game-control button:hover:not(:disabled) { background: #383144; border-color: #76649c; }
+.viewer-page .attack-button { letter-spacing: .015em; }

@@ -21,7 +21,8 @@
     "react-dom": "latest",
     "react-router-dom": "latest",
     "socket.io": "latest",
-    "socket.io-client": "latest"
+    "socket.io-client": "latest",
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@types/express": "latest",

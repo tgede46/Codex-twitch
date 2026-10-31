@@ -248,10 +248,12 @@ io.on("connection", (socket) => {
     if (!session || socket.data.role !== "viewer" || !player) return ack?.({ ok: false, error: "Rejoins la partie avant de jouer." });
     if (session.status !== "live") return ack?.({ ok: false, error: "La partie n’a pas commencé." });
     const now = Date.now();
-    if (now - player.lastAttack < 700) return ack?.({ ok: false, error: "Une seconde…" });
+    if (now - player.lastAttack < 800) return ack?.({ ok: false, error: "Une seconde…" });
     player.lastAttack = now;
     let points = 10;
-    if (session.gameId === "quiz") {
+    if (session.gameId === "boss") {
+      points = session.rageUntil > now ? 20 : 10;
+    } else if (session.gameId === "quiz") {
       if (!answer || !session.options.includes(answer)) return ack?.({ ok: false, error: "Choisis une réponse." });
       if (answer !== session.target) return ack?.({ ok: true, points: 0, correct: false });
       points = 100 + Math.max(0, 50 - Math.floor((now - session.questionStartedAt) / 1000) * 5);
@@ -348,6 +350,10 @@ io.on("connection", (socket) => {
     const player = session?.players.get("streamer");
     if (!session || socket.data.role !== "host" || session.hostToken !== socket.data.hostToken || !session.streamerParticipates || !player) {
       ack?.({ ok: false, error: "Tu as choisi d’animer la partie." });
+      return;
+    }
+    if (session.gameId !== "boss") {
+      ack?.({ ok: false, error: "Le streamer anime ce jeu depuis le tableau de bord." });
       return;
     }
     if (session.status !== "live") {
